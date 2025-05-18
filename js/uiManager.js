@@ -4,95 +4,183 @@ import * as statsManager from './statsManager.js';
 import * as reportGenerator from './reportGenerator.js';
 import * as combineMode from './combineMode.js';
 import * as utils from './utils.js';
-import * as fileEditor from './fileEditor.js'; // ADDED
+import * as fileEditor from './fileEditor.js';
 
-// Set the view mode UI (standard or combine)
-export function setViewModeUI(isCombine) {
-    appState.isCombineMode = isCombine;
-    elements.viewModeToggleBtn.textContent = appState.isCombineMode ? 'SWITCH TO STANDARD VIEW' : 'SWITCH TO COMBINE VIEW';
-    elements.textOutputContainerOuter.style.display = appState.isCombineMode ? 'none' : 'flex';
-    elements.combineModePanel.style.display = appState.isCombineMode ? 'flex' : 'none';
-    
-    if (appState.isCombineMode) {
-        combineMode.updateCombineModeListDisplay(); 
+export function initTabs() {
+    const tabButtons = document.querySelectorAll('#mainViewTabs .tab-button');
+    const tabContents = document.querySelectorAll('#tabContentArea .tab-content-item');
+
+    if (!elements.mainViewTabs || !elements.tabContentArea) {
+        console.warn("Main view tabs or content area not found. Tab system will not initialize.");
+        return;
+    }
+
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            activateTab(button.dataset.tab);
+        });
+    });
+
+    // Set initial active tab (e.g., from appState or default to first if none set)
+    // This is better handled after a project loads or in resetUI,
+    // as initially no tab content might be relevant.
+    // For now, ensure no tab is active by default if no project is loaded.
+    if (!appState.fullScanData) {
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        tabContents.forEach(content => {
+            content.classList.remove('active');
+            content.style.display = 'none';
+        });
+        appState.activeTabId = null;
+    } else if (appState.activeTabId) {
+        activateTab(appState.activeTabId);
+    } else if (tabButtons.length > 0) {
+        activateTab(tabButtons[0].dataset.tab); // Default to first tab if a project is loaded
     }
 }
 
+export function activateTab(tabIdToActivate) {
+    const tabButtons = document.querySelectorAll('#mainViewTabs .tab-button');
+    const tabContents = document.querySelectorAll('#tabContentArea .tab-content-item');
+
+    let newActiveTabFound = false;
+
+    tabButtons.forEach(btn => {
+        if (btn.dataset.tab === tabIdToActivate) {
+            btn.classList.add('active');
+            newActiveTabFound = true;
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    tabContents.forEach(content => {
+        if (content.id === tabIdToActivate) {
+            content.classList.add('active');
+            content.style.display = 'flex'; // or 'block' based on your .active style
+        } else {
+            content.classList.remove('active');
+            content.style.display = 'none';
+        }
+    });
+
+    if (newActiveTabFound) {
+        appState.activeTabId = tabIdToActivate;
+        // Specific refresh logic for tabs when they become active
+        if (tabIdToActivate === 'combineModeTab') {
+            if (appState.fullScanData && typeof combineMode !== 'undefined' && combineMode.updateCombineModeListDisplay) {
+                combineMode.updateCombineModeListDisplay();
+            } else if (!appState.fullScanData && typeof combineMode !== 'undefined' && combineMode.updateCombineModeListDisplay) {
+                combineMode.updateCombineModeListDisplay(); // Show empty state
+            }
+        }
+        // Add more refresh logic for other tabs if needed (e.g., AI Patcher)
+    } else if (tabButtons.length > 0 && !appState.fullScanData) {
+        // If no specific tab to activate and no project, ensure all are inactive
+        appState.activeTabId = null;
+    } else if (tabButtons.length > 0) {
+        // Fallback: if the target tab ID was invalid but a project is loaded, activate the first tab.
+        const firstTabButton = tabButtons[0];
+        activateTab(firstTabButton.dataset.tab);
+        return; // Prevent infinite recursion if first tab also fails (should not happen)
+    }
+
+
+    // Update copySelectedBtn disabled state based on whether combineModeTab is active
+    if (elements.copySelectedBtn) {
+         const textFilesInCommitted = appState.committedScanData?.allFilesList.filter(file => utils.isLikelyTextFile(file.path)).length > 0;
+         elements.copySelectedBtn.disabled = !(appState.activeTabId === 'combineModeTab' && appState.selectionCommitted && textFilesInCommitted);
+    }
+}
+
+
 export function refreshAllUI() {
     if (!appState.fullScanData) {
-         elements.treeContainer.innerHTML = '<div class="empty-notice">DROP A FOLDER OR SELECT ONE TO BEGIN.</div>';
-        return;
-    }
-    
-    const displayData = appState.selectionCommitted ? appState.committedScanData : appState.fullScanData;
-    
-    if (!displayData || !displayData.directoryData || (displayData.allFilesList.length === 0 && displayData.allFoldersList.length === 0 && (!displayData.directoryData.children || displayData.directoryData.children.length === 0)) ) { 
-        elements.treeContainer.innerHTML = '<div class="empty-notice">NO ITEMS IN CURRENT VIEW / SELECTION.</div>';
-        elements.globalStatsDiv.innerHTML = '<div class="empty-notice">NO DATA FOR STATS.</div>';
-        elements.selectionSummaryDiv.style.display = 'none';
-        elements.fileTypeTableBody.innerHTML = '<tr><td colspan="3">No data.</td></tr>';
-        elements.textOutputEl.textContent = "// NO ITEMS IN CURRENT VIEW / SELECTION //";
-        if (appState.isCombineMode) combineMode.updateCombineModeListDisplay();
-        elements.copyReportButton.disabled = true;
-        elements.copySelectedBtn.disabled = true;
-        elements.aiPatchPanel.style.display = appState.fullScanData ? 'block' : 'none';
+        if (elements.treeContainer) elements.treeContainer.innerHTML = '<div class="empty-notice">DROP A FOLDER OR SELECT ONE TO BEGIN.</div>';
+        if (elements.globalStatsDiv) elements.globalStatsDiv.innerHTML = '<div class="empty-notice">NO DATA FOR STATS.</div>';
+        if (elements.selectionSummaryDiv) elements.selectionSummaryDiv.style.display = 'none';
+        if (elements.fileTypeTableBody) elements.fileTypeTableBody.innerHTML = '<tr><td colspan="3">No data.</td></tr>';
+        if (elements.textOutputEl && elements.textReportTab && elements.textReportTab.classList.contains('active')) {
+            elements.textOutputEl.textContent = "// NO PROJECT LOADED //";
+        }
+        if (elements.combineModePanel && elements.combineModeTab && elements.combineModeTab.classList.contains('active')) {
+            combineMode.updateCombineModeListDisplay(); // Will show empty notice
+        }
+        if (elements.aiPatchPanel && elements.aiPatcherTab && elements.aiPatcherTab.classList.contains('active')) {
+            if(elements.aiPatchOutputLog) elements.aiPatchOutputLog.textContent = "Load a project and commit selections to use the AI Patcher.";
+        }
+
+        if (elements.copyReportButton) elements.copyReportButton.disabled = true;
+        if (elements.copySelectedBtn) elements.copySelectedBtn.disabled = true;
         return;
     }
 
-    updateVisualTreeFiltering();
-    statsManager.displayGlobalStats(displayData, appState.fullScanData);
-    elements.textOutputEl.textContent = reportGenerator.generateTextReport(displayData);
-    
-    if (appState.isCombineMode) {
+    const displayData = appState.selectionCommitted ? appState.committedScanData : appState.fullScanData;
+
+    if (!displayData || !displayData.directoryData || (displayData.allFilesList.length === 0 && displayData.allFoldersList.length === 0 && (!displayData.directoryData.children || displayData.directoryData.children.length === 0)) ) {
+        if (elements.treeContainer) elements.treeContainer.innerHTML = '<div class="empty-notice">NO ITEMS IN CURRENT VIEW / SELECTION.</div>';
+        if (elements.globalStatsDiv) elements.globalStatsDiv.innerHTML = '<div class="empty-notice">NO DATA FOR STATS.</div>';
+        if (elements.selectionSummaryDiv) elements.selectionSummaryDiv.style.display = 'none';
+        if (elements.fileTypeTableBody) elements.fileTypeTableBody.innerHTML = '<tr><td colspan="3">No data.</td></tr>';
+
+        if (appState.activeTabId === 'textReportTab' && elements.textOutputEl) {
+            elements.textOutputEl.textContent = "// NO ITEMS IN CURRENT VIEW / SELECTION //";
+        }
+        if (appState.activeTabId === 'combineModeTab') {
+            combineMode.updateCombineModeListDisplay(); // Shows empty notice
+        }
+         if (appState.activeTabId === 'aiPatcherTab' && elements.aiPatchOutputLog) {
+            elements.aiPatchOutputLog.textContent = "No items in current view/selection for patching.";
+        }
+
+        if (elements.copyReportButton) elements.copyReportButton.disabled = true;
+        if (elements.copySelectedBtn) elements.copySelectedBtn.disabled = true;
+        return;
+    }
+
+    updateVisualTreeFiltering(); // This should ideally be part of treeView module or called selectively
+    statsManager.displayGlobalStats(displayData, appState.fullScanData); // Populates #rightStatsPanel
+
+    // Update content for the currently active tab
+    if (appState.activeTabId === 'textReportTab' && elements.textOutputEl) {
+        elements.textOutputEl.textContent = reportGenerator.generateTextReport(displayData);
+    }
+    if (appState.activeTabId === 'combineModeTab') {
         combineMode.updateCombineModeListDisplay();
     }
-    
-    elements.copyReportButton.disabled = false;
-    const textFilesInCommitted = appState.committedScanData?.allFilesList.filter(file => utils.isLikelyTextFile(file.path)).length > 0;
-    elements.copySelectedBtn.disabled = !(appState.isCombineMode && appState.selectionCommitted && textFilesInCommitted);
-    elements.aiPatchPanel.style.display = 'block';
+    // AI Patcher content (like logs) might update based on its own operations, not just refreshAllUI.
 
-    // ADD THIS BLOCK to re-evaluate editor status if a file is open
+    if (elements.copyReportButton) elements.copyReportButton.disabled = !(appState.activeTabId === 'textReportTab');
+
+    const textFilesInCommitted = appState.committedScanData?.allFilesList.filter(file => utils.isLikelyTextFile(file.path)).length > 0;
+    if (elements.copySelectedBtn) {
+      elements.copySelectedBtn.disabled = !(appState.activeTabId === 'combineModeTab' && appState.selectionCommitted && textFilesInCommitted);
+    }
+
     if (appState.currentEditingFile && elements.fileEditor.style.display === 'flex') {
-        // We need to call setEditorStatus based on the most current state from editedFiles
         const currentFileState = fileEditor.getAllEditedFiles().get(appState.currentEditingFile.path);
         if (currentFileState) {
             if (currentFileState.savedInSession) {
                 fileEditor.setEditorStatus(currentFileState.isPatched ? 'patched_saved' : 'saved');
             } else {
-                // Determine if it's unchanged, unsaved, or patched_unsaved
-                // This logic is simplified; openFileInEditor has more detailed comparison
-                if (currentFileState.isPatched) {
-                    fileEditor.setEditorStatus('patched_unsaved');
-                } else {
-                     // A more robust check here would re-compare against original content
-                     // if entryHandle exists. For now, if not savedInSession and not patched,
-                     // assume it's 'unsaved' if content differs from a baseline (harder to get here)
-                     // or just set to 'unsaved' generally.
-                     // Let's use the more detailed logic by re-opening (conceptually) the file info
-                     // to get the correct status
-                     (async () => {
-                        // Construct a minimal file object for openFileInEditor to re-evaluate status
-                        // Need to get the actual file object from appState.fullScanData.allFilesList
-                        const fileToRecheck = appState.fullScanData.allFilesList.find(f => f.path === appState.currentEditingFile.path);
-                        if(fileToRecheck){
-                            // Temporarily nullify currentEditingFile to force openFileInEditor to reload status
-                            const tempCurrentFile = appState.currentEditingFile;
-                            appState.currentEditingFile = null;
-                            await fileEditor.openFileInEditor(fileToRecheck);
-                            appState.currentEditingFile = tempCurrentFile; // Restore
-                        } else {
-                             fileEditor.setEditorStatus('unsaved'); // Fallback
-                        }
-                     })();
-                }
+                 (async () => {
+                    const fileToRecheck = appState.fullScanData.allFilesList.find(f => f.path === appState.currentEditingFile.path);
+                    if(fileToRecheck){
+                        const tempCurrentFile = appState.currentEditingFile;
+                        appState.currentEditingFile = null; // Temporarily nullify
+                        await fileEditor.openFileInEditor(fileToRecheck); // This re-evaluates status
+                        appState.currentEditingFile = tempCurrentFile; // Restore
+                    } else {
+                         fileEditor.setEditorStatus('unsaved');
+                    }
+                 })();
             }
         }
     }
 }
 
 function updateVisualTreeFiltering() {
-    if (!appState.fullScanData) return;
+    if (!appState.fullScanData || !elements.treeContainer) return;
 
     const committedPaths = new Set();
     if (appState.selectionCommitted && appState.committedScanData?.directoryData) {
@@ -106,8 +194,22 @@ function updateVisualTreeFiltering() {
 
     elements.treeContainer.querySelectorAll('li').forEach(li => {
         const path = li.dataset.path;
-        const isInCommittedView = !appState.selectionCommitted || committedPaths.has(path);
-        li.classList.toggle('filtered-out', !isInCommittedView);
+        const isInCommittedView = !appState.selectionCommitted || committedPaths.has(path) || committedPaths.size === 0; // If nothing committed, show all from full scan
+        const isSelectedByCheckbox = li.dataset.selected === "true";
+
+        // Main visibility based on committed view (if active)
+        if (appState.selectionCommitted && committedPaths.size > 0) {
+            li.classList.toggle('filtered-out', !isInCommittedView);
+        } else {
+            li.classList.remove('filtered-out'); // Show all if no commit or commit is empty
+        }
     });
+}
+
+// This function is now largely obsolete due to tab system
+export function setViewModeUI(isCombine) {
+    // console.log("DEPRECATED: setViewModeUI called. Tabs now control views.");
+    // If you need to programmatically switch tabs, use activateTab(tabId).
+    // For example, to switch to combine mode: activateTab('combineModeTab');
 }
 // --- ENDFILE: js/uiManager.js --- //

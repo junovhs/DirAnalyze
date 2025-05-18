@@ -39,8 +39,9 @@
     --status-unchanged: var(--dim-color);
 
     /* New Layout Variables */
-    --sidebar-width: 280px; /* Width of the sidebar */
-    --sidebar-bg: #f0f0f0;
+    --left-sidebar-width: 290px;
+    --right-stats-panel-width: 310px;
+    --tabs-height: 40px;
 }
 
 /* Animations */
@@ -58,9 +59,9 @@ body {
     font-family: var(--font-main);
     background-color: var(--bg-color);
     color: var(--text-color);
-    display: flex; /* For appContainer to take full height */
+    display: flex;
     flex-direction: column;
-    font-size: 14px; 
+    font-size: 14px;
     letter-spacing: 0.25px;
     line-height: 1.4;
     transition: var(--transition-smooth);
@@ -69,27 +70,32 @@ body {
 /* New App Container Layout */
 #appContainer {
     display: flex;
-    flex-grow: 1; 
-    height: 100vh; 
-    overflow: hidden; 
+    flex-direction: row; /* Main 3-column layout */
+    flex-grow: 1;
+    height: 100vh;
+    overflow: hidden;
 }
 
-#sidebar {
-    width: var(--sidebar-width);
+/* Left Sidebar (was #sidebar) */
+#leftSidebar {
+    width: var(--left-sidebar-width);
     flex-shrink: 0;
-    background-color: var(--sidebar-bg);
+    background-color: var(--panel-bg); /* Slightly different for distinction */
     padding: 15px;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 12px; /* Adjusted gap */
     overflow-y: auto;
     border-right: 1px solid var(--border-color);
+    height: 100%;
+    box-sizing: border-box;
 }
 
 #sidebarHeader {
     text-align: center;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 #sidebarHeader h1 {
     font-size: 1.5em;
@@ -97,42 +103,33 @@ body {
     margin: 0;
 }
 .header-logo {
-    height: 0.9em; 
+    height: 0.9em;
     margin-right: 0.4em;
-    vertical-align: -0.1em; 
+    vertical-align: -0.1em;
 }
 
-
-#mainContentArea {
-    flex-grow: 1;
-    padding: 20px;
-    overflow-y: auto; 
-    display: flex;
-    flex-direction: column;
-    gap: 20px; 
-}
-
-/* Drop Zone in Sidebar */
-#mainAction { 
+#mainAction {
     width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
+    flex-shrink: 0;
 }
 
 #dropZone {
     width: 100%;
-    min-height: 150px; 
+    min-height: 130px; /* Slightly smaller */
     border: 2px dashed var(--accent-color);
     border-radius: var(--border-radius-medium);
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
-    background-color: var(--bg-color); 
+    background-color: var(--bg-color);
     transition: var(--transition-smooth);
     cursor: pointer;
     box-shadow: var(--terminal-shadow);
+    margin-bottom: 10px; /* Space before import button */
 }
 #dropZone.dragover {
     background-color: var(--highlight-bg);
@@ -140,88 +137,159 @@ body {
     box-shadow: 0 0 10px var(--accent-color);
     transform: scale(1.01);
 }
-.drop-content { padding: 10px; } 
-.drop-icon { font-size: 2rem; margin-bottom: 8px; color: var(--accent-color); }
-.drop-text { font-size: 0.9rem; margin-bottom: 8px; color: var(--text-color); }
-.drop-alternative { margin: 5px 0; font-size: 0.8rem; color: var(--dim-color); }
+.drop-content { padding: 10px; }
+.drop-icon { font-size: 1.8rem; margin-bottom: 6px; color: var(--accent-color); } /* Smaller */
+.drop-text { font-size: 0.85rem; margin-bottom: 6px; color: var(--text-color); } /* Smaller */
+.drop-alternative { margin: 4px 0; font-size: 0.75rem; color: var(--dim-color); } /* Smaller */
 .folder-select-btn {
-    padding: 6px 12px; 
+    padding: 5px 10px; /* Smaller */
     background-color: var(--button-bg);
     color: var(--button-text);
     border-radius: var(--border-radius-small);
     cursor: pointer;
     transition: var(--transition-smooth);
-    margin-top: 5px;
+    margin-top: 4px;
     border: 1px solid var(--border-color);
-    font-size: 0.85em;
+    font-size: 0.8em; /* Smaller */
 }
 .folder-select-btn:hover { background-color: var(--button-hover-bg); box-shadow: var(--shadow-small); }
 
-/* Text Loader in Sidebar */
-#loader { 
+#loader {
     display: none;
     font-size: 0.9rem;
     color: var(--accent-color);
     margin: 10px 0;
+    text-align: center;
+    flex-shrink: 0;
 }
 #loader.visible { display: block; }
 
-/* Sidebar Tools Container */
-#sidebarToolsContainer {
-    display: flex;
-    flex-direction: column;
-    gap: 8px; 
-}
 .sidebar-hr {
     border: none;
     border-top: 1px solid var(--border-color);
-    margin: 5px 0;
+    margin: 8px 0; /* Adjusted margin */
 }
-.utility-button { 
+
+#treeViewControls, #generalActions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.utility-button {
     width: 100%;
     text-align: left;
     padding: 8px 10px;
 }
 
-/* Main Content Panels Wrapper */
-.content-panels-wrapper {
-    display: flex;
-    flex-direction: row; 
-    gap: 20px;
-    flex-grow: 1; 
-    min-height: 0; 
+/* Directory Tree container within left sidebar */
+#leftSidebar #visualOutputContainer {
+    flex-grow: 1; /* Allow tree to take available space */
+    border: 1px solid var(--border-color); /* Add border for clarity */
+    box-shadow: var(--terminal-shadow);
+    padding: 10px;
+    background-color: var(--bg-color); /* Match panel background */
+    border-radius: var(--border-radius-medium);
+    display: flex; /* To make treeContainer fill it */
+    flex-direction: column;
+    overflow: hidden; /* Important */
+    min-height: 150px; /* Ensure it's not too small */
+}
+#leftSidebar #visualOutputContainer .panel-header {
+    padding-bottom: 5px;
+    margin-bottom: 5px;
+    flex-shrink: 0;
+}
+#leftSidebar #treeContainer {
+    flex-grow: 1;
+    overflow-y: auto; /* Scroll tree content */
 }
 
-.content-panel { 
-    flex: 1; 
-    background-color: var(--panel-bg);
-    padding: 15px;
-    border-radius: var(--border-radius-medium);
-    border: 1px solid var(--border-color);
-    box-shadow: var(--terminal-shadow);
+/* Main View (Center Column) */
+#mainView {
+    flex-grow: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden; 
-    min-width: 300px; 
+    overflow: hidden;
+    height: 100%;
+    background-color: var(--bg-color);
+    padding: 15px; /* Padding around tab area and content */
+    box-sizing: border-box;
+    gap: 10px; /* Gap between tabs and content area */
 }
 
-/* Specific Panels Styling Adjustments */
-#globalStatsPanel { 
-    margin-bottom: 0; 
+#mainViewTabs {
+    display: flex;
+    gap: 1px; /* Minimal gap between tab buttons */
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0; /* Prevent tabs from shrinking */
+    height: var(--tabs-height);
+    align-items: flex-end; /* Align buttons to the bottom of the container */
 }
 
-#visualOutputContainer,
-#textOutputContainerOuter,
-#combineModePanel {
-    height: auto; 
-    max-height: none; 
+.tab-button {
+    padding: 8px 15px;
+    font-family: var(--font-main);
+    font-size: 0.9em;
+    background-color: var(--button-bg);
+    color: var(--button-text);
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-radius: var(--border-radius-small) var(--border-radius-small) 0 0;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    margin-bottom: -1px; /* Overlap with tabContentArea border */
+    position: relative;
+}
+.tab-button:hover {
+    background-color: var(--button-hover-bg);
+}
+.tab-button.active {
+    background-color: var(--panel-bg);
+    border-color: var(--border-color);
+    /* border-bottom: 1px solid var(--panel-bg); */ /* Removed to use margin-bottom -1px */
+    color: var(--accent-color);
+    font-weight: 500;
+    z-index: 1; /* Bring active tab border above content area's top border */
 }
 
-#combineModePanel {
-    display: none; 
+#tabContentArea {
+    flex-grow: 1;
+    overflow: hidden; /* Parent handles overflow, children flex */
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color); /* Border around content area */
+    border-radius: 0 var(--border-radius-small) var(--border-radius-small) var(--border-radius-small);
+    background-color: var(--panel-bg);
 }
-#aiPatchPanel { 
-    margin-top: 0; 
+
+.tab-content-item {
+    display: none; /* Hidden by default */
+    flex-grow: 1;
+    height: 100%;
+    overflow: hidden; /* Individual tab content should manage its own scroll if needed */
+    /* Panels inside will handle their own padding and scrolling */
+}
+.tab-content-item.active {
+    display: flex; /* Show active tab */
+    flex-direction: column; /* For panel inside */
+}
+
+/* Panels within Tab Content Area */
+#tabContentArea .content-panel {
+    flex-grow: 1;
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+    border: none; /* Remove individual panel borders if tabContentArea has one */
+    box-shadow: none; /* Remove individual panel shadow */
+    border-radius: 0; /* No radius if fitting into tab area */
+    display: flex;
+    flex-direction: column; /* Ensure panels are flex containers */
+}
+#tabContentArea #aiPatchPanel {
+    background-color: var(--panel-bg); /* Match other panels */
 }
 
 /* Panel Headers */
@@ -232,25 +300,35 @@ body {
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 8px;
     margin-bottom: 8px;
+    flex-shrink: 0;
 }
 .panel-header h2 {
     margin: 0;
     color: var(--accent-color);
-    font-size: 1.15em; 
+    font-size: 1.1em; /* Slightly smaller */
 }
 
-/* Content Areas within Panels */
-#treeContainer,
+/* Content Areas within Panels (e.g., textOutput, selectedFilesContainer) */
 #textOutput,
 #selectedFilesContainer,
-#aiPatchOutputLog {
-    overflow-y: auto; 
-    flex-grow: 1;
-    font-size: 0.85em; 
+#aiPatchOutputLog,
+#aiPatchInput { /* aiPatchInput is a textarea */
+    overflow-y: auto;
+    flex-grow: 1; /* Take available space */
 }
-#textOutput, #aiPatchOutputLog { white-space: pre; line-height: 1.4; }
+#textOutput, #aiPatchOutputLog {
+    white-space: pre;
+    line-height: 1.4;
+    font-size: 0.85em;
+    padding: 10px; /* Add padding directly */
+    background-color: var(--bg-color); /* Differentiate from panel bg */
+    border-radius: var(--border-radius-small);
+}
+#selectedFilesContainer {
+    padding: 5px;
+}
 #aiPatchInput {
-    width: calc(100% - 16px); 
+    width: calc(100% - 16px); /* Full width minus padding */
     padding: 8px;
     margin-bottom: 8px;
     border: 1px solid var(--border-color);
@@ -259,59 +337,71 @@ body {
     font-size: 0.85em;
     background-color: var(--bg-color);
     color: var(--text-color);
-    min-height: 80px; 
+    min-height: 80px;
     resize: vertical;
+    box-sizing: border-box;
+}
+#aiPatchPanel .patch-input-area, #aiPatchPanel .patch-results-area {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+#aiPatchPanel .patch-results-area {
+    flex-grow: 1; /* Allow log to take space */
+    overflow: hidden; /* Parent div for log */
 }
 
 
-/* Tree View */
-.tree ul { list-style-type: none; padding-left: 18px; margin: 1px 0; } 
+/* Right Stats Panel (was #globalStatsPanel) */
+#rightStatsPanel {
+    width: var(--right-stats-panel-width);
+    flex-shrink: 0;
+    background-color: var(--panel-bg);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    overflow-y: auto;
+    border-left: 1px solid var(--border-color);
+    height: 100%;
+    box-sizing: border-box;
+}
+#rightStatsPanel .panel-header h2 { /* Make stats header consistent */
+    font-size: 1.15em;
+    color: var(--accent-color);
+    margin: 0;
+}
+#globalStats, .file-type-stats { /* Children of rightStatsPanel */
+    padding: 5px;
+}
+.selection-summary {
+    font-size: 0.85em; color: var(--dim-color); margin-bottom: 8px;
+    border-bottom: 1px dashed var(--border-color); padding-bottom: 8px;
+}
+.stat-item { margin-bottom: 6px; font-size: 0.85em; }
+.stat-item strong { color: var(--text-color); font-weight: 500; }
+.file-type-stats table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.85em; }
+.file-type-stats th, .file-type-stats td { text-align: left; padding: 3px 5px; border-bottom: 1px solid var(--border-color); }
+.file-type-stats th { background-color: var(--highlight-bg); font-weight: 500; }
+
+
+/* Tree View (largely unchanged but context matters) */
+.tree ul { list-style-type: none; padding-left: 18px; margin: 1px 0; }
 .tree li { margin: 0; position: relative; padding: 0; display: flex; flex-direction: column; }
-
 .tree li > .item-line { display: flex; align-items: center; padding: 1px 0; }
-.tree li.filtered-out { opacity: var(--disabled-opacity); }
-
-/* Tree branch lines - existing logic from user CSS */
+.tree li.filtered-out { opacity: var(--disabled-opacity); display: none; /* Hide completely */ }
 .tree li::before { content: ""; position: absolute; left: -10px; top: 0.6em; border-left: 1px solid var(--dim-color); height: 100%; }
-.tree > li:last-child::before { height: 0.6em; } /* Correct for last root item */
-.tree ul > li::before { top: -0.4em; height: calc(100% + 0.4em); } /* Children lines start higher */
-.tree ul > li:last-child::before { height: 1em; } /* Last child in a group */
-
-
+.tree > li:last-child::before { height: 0.6em; }
+.tree ul > li::before { top: -0.4em; height: calc(100% + 0.4em); }
+.tree ul > li:last-child::before { height: 1em; }
 .item-prefix { display: inline-flex; align-items: center; margin-right: 4px; }
-.tree .selector { margin-right: 5px; width: 11px; height: 11px; top: 0; }
+.tree .selector { margin-right: 5px; width: 11px; height: 11px; flex-shrink: 0; }
 .tree .selector:checked::after { left: 2.5px; top: -0.5px; width: 3px; height: 6px; }
-
-/* --- FILE TYPE ICONS --- */
-.tree .icon {
-    display: inline-block;
-    width: 16px; 
-    height: 16px; 
-    margin-right: 3px;
-    text-align: center;
-    vertical-align: middle; /* Adjusted for potentially better alignment */
-    line-height: 16px; 
-    color: var(--dim-color); /* Default icon color */
-}
-.tree .icon svg {
-    width: 100%;
-    height: 100%;
-    vertical-align: middle; /* Ensure SVG itself is aligned */
-    fill: currentColor; /* Make SVG use the icon span's color */
-}
-/* Folder toggle icon (using text content) */
-.tree .folder > .item-line > .item-prefix > .icon::before { 
-    content: '▸'; /* Collapsed folder */
-    font-size: 1em; 
-    cursor: pointer;
-    color: var(--accent-color); /* Explicitly color folder toggle */
-    display: inline-block;
-    width: 100%; /* Make before element take full icon space for click */
-    height: 100%;
-}
-.tree .folder:not(.collapsed) > .item-line > .item-prefix > .icon::before { content: '▾'; } /* Expanded folder */
-
-/* Specific file icon colors (examples, assuming classes like .icon-js are added to li) */
+.tree .folder-toggle { display: inline-block; width: 12px; text-align: center; margin-right: 3px; cursor: pointer; color: var(--accent-color); font-size: 1em; line-height: 1; user-select: none; }
+.tree .icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--dim-color); }
+.tree .folder > .item-line > .item-prefix > .icon { color: var(--accent-color); }
+.tree .icon svg { width: 100%; height: 100%; vertical-align: middle; fill: currentColor; }
 .tree .file.icon-js > .item-line > .item-prefix > .icon,
 .tree .file.icon-ts > .item-line > .item-prefix > .icon { color: #f0db4f; }
 .tree .file.icon-html > .item-line > .item-prefix > .icon { color: #e34c26; }
@@ -319,8 +409,6 @@ body {
 .tree .file.icon-json > .item-line > .item-prefix > .icon { color: #888888; }
 .tree .file.icon-md > .item-line > .item-prefix > .icon { color: #007acc; }
 .tree .file.icon-py > .item-line > .item-prefix > .icon { color: #3572A5; }
-/* --- END FILE TYPE ICONS --- */
-
 .tree .name { cursor: pointer; flex-grow: 1; font-size: 0.9em; }
 .tree .folder > .item-line > .name { font-weight: 500; }
 .tree .name:hover { color: var(--accent-color); }
@@ -331,31 +419,13 @@ body {
 .edit-btn, .preview-btn { cursor: pointer; transition: transform 0.2s; font-size: 0.85em; }
 .edit-btn:hover, .preview-btn:hover { transform: scale(1.1); color: var(--accent-color); }
 
-/* Stats Panel (Global and File Type) */
-.stats-panel {
-    background-color: var(--panel-bg);
-}
-.selection-summary { font-size: 0.85em; color: var(--dim-color); margin-bottom: 8px; border-bottom: 1px dashed var(--border-color); padding-bottom: 8px; }
-.stat-item { margin-bottom: 6px; font-size: 0.85em; }
-.stat-item strong { color: var(--text-color); font-weight: 500; }
-.file-type-stats table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.85em; }
-.file-type-stats th, .file-type-stats td { text-align: left; padding: 3px 5px; border-bottom: 1px solid var(--border-color); }
-.file-type-stats th { background-color: var(--highlight-bg); font-weight: 500; }
-
 /* Button Styles */
-.button-container { margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px; }
-button.action-button { 
-    background-color: var(--button-bg);
-    color: var(--button-text);
-    border: 1px solid var(--border-color);
-    padding: 6px 10px;
-    font-family: var(--font-main);
-    font-size: 0.8em;
-    border-radius: var(--border-radius-small);
-    cursor: pointer;
-    transition: var(--transition-smooth);
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
+.button-container { margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px; padding: 0 10px 10px; flex-shrink:0; }
+button.action-button {
+    background-color: var(--button-bg); color: var(--button-text); border: 1px solid var(--border-color);
+    padding: 6px 10px; font-family: var(--font-main); font-size: 0.8em;
+    border-radius: var(--border-radius-small); cursor: pointer; transition: var(--transition-smooth);
+    letter-spacing: 0.5px; text-transform: uppercase;
 }
 button.action-button:hover:not(:disabled) { background-color: var(--button-hover-bg); box-shadow: var(--shadow-small); }
 button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
@@ -370,12 +440,95 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
 .binary-badge { background-color: var(--dim-color); color: var(--panel-bg); font-size: 0.65em; padding: 1px 3px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
 .binary-summary { font-size: 0.8em; color: var(--dim-color); padding: 6px; border-top: 1px dashed var(--border-color); margin-top: 6px; text-align: center; }
 .binary-summary.warning { color: var(--warning-color); font-weight: bold; }
+.empty-notice { text-align: center; padding: 15px; color: var(--dim-color); font-size: 0.85em; flex-grow: 1; display:flex; align-items:center; justify-content:center;}
 
-/* Empty Notice */
-.empty-notice { text-align: center; padding: 15px; color: var(--dim-color); font-size: 0.85em; }
 
-/* Modals and Popups (File Preview, Editor, Error, Diff) */
-#filePreview, #fileEditor, .error-panel, .diff-modal {
+/* --- MODAL STYLING --- */
+/* General Modal Backdrop - Used by diff-modal */
+.diff-modal {
+    display: none; /* Controlled by JS */
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto; /* In case content is too tall, though content itself should scroll */
+    background-color: rgba(0,0,0,0.65); /* Darker backdrop */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px; /* Give space around modal content */
+    box-sizing: border-box;
+}
+
+/* General Modal Content Box - Used by diff-modal-content */
+.diff-modal-content {
+    background-color: var(--panel-bg);
+    padding: 0; /* Let children define padding */
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-medium);
+    width: auto; /* Let content dictate, up to max */
+    min-width: 320px; /* Prevent squishing */
+    max-width: 90%;
+    box-shadow: var(--shadow-medium);
+    position: relative; /* For close button, etc. */
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh; /* Prevent modal being taller than viewport */
+    overflow: hidden; /* Content inside should scroll */
+}
+/* Specific max-widths for different modals */
+#scaffoldImportModal .diff-modal-content { max-width: 600px; }
+#aiPatchDiffModal .diff-modal-content { max-width: 900px; }
+#aiBriefingStudioModal .diff-modal-content { max-width: 700px; }
+
+/* Modal Header Area (Common for .diff-modal-content children) */
+.diff-modal-content > div:first-child:not(.modal-scrollable-content) { /* Targeting the header div */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+.diff-modal-content > div:first-child h3 { margin: 0; font-size: 1.2em; color: var(--accent-color); }
+.diff-modal-close { color: var(--dim-color); font-size: 22px; font-weight: bold; cursor: pointer; line-height:1; background:none; border:none; padding:0 5px;}
+.diff-modal-close:hover, .diff-modal-close:focus { color: var(--text-color); }
+
+/* Scrollable content area within modals */
+.modal-scrollable-content {
+    padding: 15px;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+/* For diff output containers specifically if they are direct children */
+#diffOutputContainer {
+    white-space: pre-wrap; font-family: var(--font-main); font-size: 0.85em;
+    border: 1px solid var(--border-color); margin:15px;
+    padding: 8px; max-height: 60vh; overflow-y: auto; background-color: var(--bg-color);
+    line-height: 1.5; flex-grow:1; /* Grow if in flex context */
+}
+#diffOutputContainer del, #aiPatchDiffOutput del { background-color: #ffe6e6; color: #c00; text-decoration: none; padding: 0 1px; }
+#diffOutputContainer ins, #aiPatchDiffOutput ins { background-color: #e6ffe6; color: #060; text-decoration: none; padding: 0 1px; }
+
+/* Modal Actions Area */
+.diff-modal-actions {
+    text-align: right;
+    padding: 10px 15px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    background-color: var(--highlight-bg);
+}
+.diff-modal-actions .action-button.secondary { background-color: var(--dim-color); color: var(--panel-bg); border-color: var(--dim-color); }
+.diff-modal-actions .action-button.secondary:hover { background-color: var(--text-color); border-color: var(--text-color); }
+
+
+/* File Preview, Editor, Error Panel Modals (using fixed + transform) */
+#filePreview, #fileEditor, .error-panel {
     position: fixed;
     top: 50%;
     left: 50%;
@@ -384,82 +537,65 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
     border: 1px solid var(--accent-color);
     border-radius: var(--border-radius-medium);
     box-shadow: var(--shadow-medium);
-    z-index: 1000; 
+    z-index: 2010; /* Higher than diff-modal if they can overlap, or adjust as needed */
+    display: none; /* Controlled by JS */
+    flex-direction: column; /* Common for these modals */
+    overflow: hidden; /* Content inside will scroll */
 }
+
 /* File Preview */
-#filePreview { display: none; padding: 15px; width: 80%; max-width: 900px; height: 80vh; max-height: 700px; overflow: hidden; flex-direction: column; }
-#filePreviewContentWrapper { flex-grow: 1; overflow: hidden; position: relative; display: flex; /* Ensure CodeMirror can fill */ }
-#filePreviewContent { /* This is now a div for CodeMirror */
-    flex-grow: 1; /* Allow CodeMirror to fill */
-    /* white-space: pre-wrap; -- Handled by CodeMirror */
-    /* font-family: var(--font-main); -- Handled by CodeMirror */
-    /* font-size: 0.9em; -- Handled by CodeMirror */
-    height: 100%; /* Critical for CodeMirror */
-}
-#closePreview { position: absolute; top: 10px; right: 10px; background:transparent; border:none; color:var(--accent-color); font-size:1.5em; cursor:pointer; }
+#filePreview { padding: 0; width: 80%; max-width: 900px; height: 80vh; max-height: 700px; }
+#filePreviewTitle { padding: 10px 15px; margin:0; border-bottom: 1px solid var(--border-color); font-size:1.2em; color: var(--accent-color);}
+#filePreviewContentWrapper { flex-grow: 1; overflow: hidden; position: relative; display: flex; padding: 1px; /* for CM border */ }
+#filePreviewContent { flex-grow: 1; height: 100%; } /* Div for CodeMirror */
+#closePreview { position: absolute; top: 8px; right: 12px; background:transparent; border:none; color:var(--dim-color); font-size:1.8em; cursor:pointer; z-index:1; }
+#closePreview:hover { color:var(--text-color); }
+
 
 /* File Editor */
-#fileEditor { display: none; z-index: 1010; width: 85vw; max-width: 1100px; height: 80vh; max-height: 750px; padding:0; flex-direction: column; }
-.editor-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background-color: var(--highlight-bg); border-bottom: 1px solid var(--border-color); }
-.editor-header h3 { margin: 0; font-size: 1em; }
-.editor-container { flex-grow: 1; overflow: hidden; position: relative; display: flex; } /* Ensures CodeMirror can fill */
-#editorContent { /* This is now a div for CodeMirror */
-    flex-grow: 1; /* Allow CodeMirror to fill */
-    height: 100%; /* Critical for CodeMirror */
-    /* Styles like resize, padding, font, line-height, background-color, border, outline are handled by CodeMirror or its theme */
-}
-.editor-footer { padding: 6px 12px; border-top: 1px solid var(--border-color); font-size: 0.75em; color: var(--dim-color); background-color: var(--highlight-bg); }
-.editor-status { padding: 2px 6px; border-radius: 3px; font-size: 0.75em; margin: 0 8px; display: inline-block; min-width: 90px; text-align: center; }
+#fileEditor { z-index: 2020; width: 85vw; max-width: 1100px; height: 85vh; max-height: 800px; padding:0; }
+.editor-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background-color: var(--highlight-bg); border-bottom: 1px solid var(--border-color); flex-shrink:0; }
+.editor-header h3 { margin: 0; font-size: 1.1em; }
+.editor-container { flex-grow: 1; overflow: hidden; position: relative; display: flex; padding: 1px; /* For CM border */ }
+#editorContent { flex-grow: 1; height: 100%; } /* Div for CodeMirror */
+.editor-footer { padding: 6px 12px; border-top: 1px solid var(--border-color); font-size: 0.75em; color: var(--dim-color); background-color: var(--highlight-bg); flex-shrink:0; }
+.editor-status { padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin: 0 8px; display: inline-block; min-width: 100px; text-align: center; }
 .status-saved { color: var(--status-saved); } .status-unsaved { color: var(--status-unsaved); font-weight: bold; }
 .status-loading { color: var(--status-loading); } .status-error { color: var(--status-error); } .status-unchanged { color: var(--status-unchanged); }
 .editor-actions { display: flex; gap: 8px; }
-.editor-button { padding: 4px 8px; background-color: var(--button-bg); color: var(--button-text); border: 1px solid var(--border-color); border-radius: var(--border-radius-small); cursor: pointer; font-size: 0.75em; }
+.editor-button { padding: 4px 8px; background-color: var(--button-bg); color: var(--button-text); border: 1px solid var(--border-color); border-radius: var(--border-radius-small); cursor: pointer; font-size: 0.8em; }
 .editor-button:hover:not(:disabled) { background-color: var(--button-hover-bg); } .editor-button:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
 
-/* CodeMirror specific styling (base, actual theme comes from CDN) */
+/* CodeMirror specific styling */
 .CodeMirror {
-  border: 1px solid var(--border-color); /* Consistent border */
-  height: 100% !important; /* Ensure it fills its container */
+  border: 1px solid var(--border-color);
+  height: 100% !important;
   font-family: var(--font-main) !important;
-  font-size: 0.9em !important; /* Match previous textarea */
-  line-height: 1.5 !important; /* Match previous textarea */
+  font-size: 0.9em !important;
+  line-height: 1.5 !important;
 }
-/* Ensure specific CodeMirror instances get 100% height if parents are flex */
 #filePreviewContentWrapper .CodeMirror,
 .editor-container .CodeMirror {
     height: 100%;
     width: 100%;
+    border: none; /* Border handled by wrapper or content div */
 }
 
 
 /* Error Report Panel */
-.error-panel { display: none; z-index: 1001; border-color: var(--error-color); width: 80%; max-width: 550px; padding:0; }
-.error-header { background-color: var(--error-color); color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; }
-.error-header h3 { margin: 0; font-size: 1.1em; }
-.error-header button { background: none; border: none; color: white; font-size: 1.4em; cursor: pointer; }
-.error-content { padding: 15px; font-size: 0.85em; } .error-title { font-weight: bold; font-size: 1em; margin-bottom: 8px; color: var(--error-color); }
+.error-panel { z-index: 2030; border-color: var(--error-color); width: 80%; max-width: 600px; padding:0; }
+.error-header { background-color: var(--error-color); color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; flex-shrink:0; }
+.error-header h3 { margin: 0; font-size: 1.2em; }
+.error-header button { background: none; border: none; color: white; font-size: 1.6em; cursor: pointer; }
+.error-content { padding: 15px; font-size: 0.9em; flex-grow:1; overflow-y:auto; }
+.error-title { font-weight: bold; font-size: 1em; margin-bottom: 8px; color: var(--error-color); }
 .error-message { margin-bottom: 10px; }
-.error-details { padding: 8px; background-color: var(--highlight-bg); border-radius: var(--border-radius-small); margin-bottom: 10px; font-family: var(--font-main); white-space: pre-wrap; color: var(--dim-color); font-size: 0.8em; max-height: 120px; overflow-y: auto; }
+.error-details { padding: 8px; background-color: var(--highlight-bg); border-radius: var(--border-radius-small); margin-bottom: 10px; font-family: var(--font-main); white-space: pre-wrap; color: var(--dim-color); font-size: 0.8em; max-height: 150px; overflow-y: auto; }
 .error-suggestions { border-top: 1px solid var(--border-color); padding-top: 10px; } .error-suggestions ul { padding-left: 18px; margin-top: 4px; } .error-suggestions li { margin-bottom: 4px; }
 
 /* Notification */
-.notification { position: fixed; top: 0; right: 20px; background-color: var(--notification-bg); color: white; padding: 8px 12px; border-radius: 0 0 var(--border-radius-small) var(--border-radius-small); z-index: 1100; max-width: 280px; transform: translateY(-100%); border-left: 4px solid var(--notification-border); box-shadow: var(--shadow-medium); font-size: 0.85em; }
+.notification { position: fixed; top: 0; right: 20px; background-color: var(--notification-bg); color: white; padding: 8px 12px; border-radius: 0 0 var(--border-radius-small) var(--border-radius-small); z-index: 2100; max-width: 280px; transform: translateY(-100%); border-left: 4px solid var(--notification-border); box-shadow: var(--shadow-medium); font-size: 0.85em; }
 .notification.show { animation: slideDown 0.3s forwards, slideUp 0.3s forwards 3s; }
-
-/* Diff Modal Styles */
-.diff-modal { display: none; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); }
-.diff-modal-content { background-color: var(--panel-bg); margin: 5% auto; padding: 15px; border: 1px solid var(--border-color); border-radius: var(--border-radius-medium); width: 80vw; max-width: 900px; box-shadow: var(--shadow-medium); position: relative; }
-.diff-modal-close { color: var(--dim-color); position: absolute; top: 8px; right: 15px; font-size: 24px; font-weight: bold; cursor: pointer; line-height:1; }
-.diff-modal-close:hover, .diff-modal-close:focus { color: var(--text-color); }
-#diffOutputContainer { 
-    white-space: pre-wrap; font-family: var(--font-main); font-size: 0.85em; border: 1px solid var(--border-color);
-    padding: 8px; max-height: 60vh; overflow-y: auto; background-color: var(--bg-color); margin-bottom: 10px; line-height: 1.5;
-}
-#diffOutputContainer del, #aiPatchDiffOutput del { background-color: #ffe6e6; color: #c00; text-decoration: none; padding: 0 1px; }
-#diffOutputContainer ins, #aiPatchDiffOutput ins { background-color: #e6ffe6; color: #060; text-decoration: none; padding: 0 1px; }
-.diff-modal-actions { text-align: right; margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px; }
-.diff-modal-actions .action-button.secondary { background-color: var(--dim-color); color: var(--panel-bg); border-color: var(--dim-color); }
-.diff-modal-actions .action-button.secondary:hover { background-color: var(--text-color); border-color: var(--text-color); }
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar { width: var(--scroll-thumb-width); height: var(--scroll-thumb-width); }
@@ -470,106 +606,78 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
 /* Initial Page Loader Styles */
 #pageLoader { position: fixed; top:0; left:0; width:100vw; height:100vh; background-color:var(--bg-color); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999; opacity:1; transition:opacity 0.5s ease-out .2s; }
 #pageLoader.hidden { opacity:0; pointer-events:none; }
-#pageLoader video { width:150px; height:150px; margin-bottom:15px; } 
+#pageLoader video { width:150px; height:150px; margin-bottom:15px; }
 #pageLoader p { font-size:1.1em; color:var(--text-color); }
 
-
-/* Responsive Adjustments */
-@media (max-width: 1200px) { 
-    .content-panels-wrapper {
-        flex-direction: column; 
+/* Responsive Adjustments for the new 3-column layout */
+@media (max-width: 1100px) { /* Wider breakpoint for 3 columns to start stacking */
+    #appContainer {
+        flex-direction: column;
+        height: auto;
+        overflow-y: auto; /* Allow body to scroll now */
     }
-    .content-panel {
-        min-width: 0; 
-        max-height: 50vh; 
+    body { overflow-y: auto; } /* Ensure body scrolls */
+
+    #leftSidebar, #mainView, #rightStatsPanel {
+        width: 100%;
+        height: auto;
+        max-height: none;
+        border-right: none;
+        border-left: none;
+        border-bottom: 1px solid var(--border-color);
+        overflow-y: visible; /* Let content expand */
+    }
+    #mainView {
+        padding: 10px; /* Reduce padding */
+    }
+    #tabContentArea .content-panel {
+         min-height: 300px; /* Ensure tab panels have some height */
+         max-height: 60vh; /* But also constrain them */
+    }
+    #leftSidebar #visualOutputContainer {
+        max-height: 50vh; /* Max height for tree on mobile-like views */
+        min-height: 200px;
+    }
+    #rightStatsPanel {
+        border-bottom: none; /* Last item, no bottom border */
     }
 }
 
 @media (max-width: 768px) {
     body { font-size: 13px; }
-    #appContainer { flex-direction: column; height: auto; } 
-    #sidebar {
-        width: 100%;
-        height: auto; 
-        overflow-y: visible;
-        border-right: none;
-        border-bottom: 1px solid var(--border-color);
-        padding: 10px;
-    }
-    #mainContentArea { padding: 10px; }
-    #sidebarToolsContainer {
-        flex-direction: row; 
+    #leftSidebar { padding: 10px; gap:10px; }
+    #mainViewTabs {
         flex-wrap: wrap;
-        justify-content: center;
+        padding-bottom: 5px;
+        height: auto; /* Allow tabs to wrap */
     }
-    .utility-button { width: auto; flex-grow: 1; text-align: center; min-width: 100px; }
-    .sidebar-hr { display: none; }
+    .tab-button { padding: 6px 10px; font-size: 0.8em; margin-bottom: 5px; }
+    #rightStatsPanel { padding: 10px; }
 
-    .drop-icon { font-size: 1.8rem; }
+    .drop-icon { font-size: 1.6rem; }
     .drop-text { font-size: 0.8rem; }
     .folder-select-btn { font-size: 0.75em; }
 
     .panel-header h2 { font-size: 1.05em; }
+    #leftSidebar #visualOutputContainer .panel-header h2 { font-size: 1.05em; }
     #aiPatchInput { min-height: 60px; font-size: 0.8em; }
-    button.action-button { font-size: 0.75em; padding: 5px 8px; }
+    button.action-button, .utility-button { font-size: 0.75em; padding: 5px 8px; }
+    .editor-button { font-size: 0.75em; }
 
-    #fileEditor { width: 95vw; height: 85vh; }
-    #filePreview { width: 95vw; height: 85vh; }
-    .diff-modal-content { width: 90vw; margin: 5% auto; }
+    /* Modals full width on small screens */
+    #fileEditor, #filePreview,
+    #scaffoldImportModal .diff-modal-content,
+    #aiPatchDiffModal .diff-modal-content,
+    #aiBriefingStudioModal .diff-modal-content,
+    .error-panel {
+        width: 95vw !important;
+        max-width: 95vw !important;
+        height: auto;
+        max-height: 90vh;
+    }
+     .diff-modal { padding: 10px; } /* Reduce padding for backdrop */
 }
 
 body.loaded #appContainer {
-    /* Styles to apply after loading, if any specific are needed, beyond display changes in JS */
+    /* Styles to apply after loading, if any specific are needed */
 }
-
-
-.item-prefix {
-    display: inline-flex;
-    align-items: center;
-    margin-right: 4px; /* Original margin */
-    /* gap: 3px; /* Using margins on individual elements for more control */
-}
-
-.tree .selector {
-    margin-right: 5px; /* Spacing after checkbox */
-    width: 11px;
-    height: 11px;
-    flex-shrink: 0;
-}
-
-.tree .folder-toggle { /* New style for the dedicated toggle span */
-    display: inline-block;
-    width: 12px; /* Give it some fixed width */
-    text-align: center;
-    margin-right: 3px; /* Spacing after toggle, before icon */
-    cursor: pointer;
-    color: var(--accent-color);
-    font-size: 1em; /* Or adjust as needed */
-    line-height: 1; /* To prevent extra vertical space */
-    user-select: none; /* Prevent text selection on double click */
-}
-
-.tree .icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    /* margin-right: 3px; /* This was for icon, now toggle has margin-right */
-    color: var(--dim-color); /* Default file icon color */
-}
-.tree .folder > .item-line > .item-prefix > .icon {
-    color: var(--accent-color); /* Folder SVG icon color */
-}
-
-
-.tree .icon svg {
-    width: 100%;
-    height: 100%;
-    vertical-align: middle;
-    fill: currentColor;
-}
-
-.tree .file.icon-js > .item-line > .item-prefix > .icon,
-.tree .file.icon-ts > .item-line > .item-prefix > .icon { color: #f0db4f; }
-/* ... other specific icon colors ... */
