@@ -6,19 +6,17 @@ import * as notificationSystem from './notificationSystem.js';
 import * as fileEditor from './fileEditor.js';
 import * as errorHandler from './errorHandler.js';
 import { getFileExtension } from './utils.js';
-import * as fileSystem from './fileSystem.js'; // For filterScanData
+import * as fileSystem from './fileSystem.js';
 
 export function initScaffoldImporter() {
     if (elements.importAiScaffoldBtn) {
         elements.importAiScaffoldBtn.addEventListener('click', openScaffoldModal);
-    } else {
-        console.warn('[ScaffoldImporter] importAiScaffoldBtn not found.');
     }
     if (elements.closeScaffoldModalBtn) {
         elements.closeScaffoldModalBtn.addEventListener('click', closeScaffoldModal);
     }
     if (elements.createProjectFromScaffoldBtn) {
-        elements.createProjectFromScaffoldBtn.addEventListener('click', processScaffoldJson);
+        elements.createProjectFromScaffoldBtn.addEventListener('click', processScaffoldJsonInput);
     }
     if (elements.cancelScaffoldImportBtn) {
         elements.cancelScaffoldImportBtn.addEventListener('click', closeScaffoldModal);
@@ -27,25 +25,28 @@ export function initScaffoldImporter() {
 
 function openScaffoldModal() {
     if (elements.aiScaffoldJsonInput) elements.aiScaffoldJsonInput.value = '';
-    if (elements.scaffoldImportModal) elements.scaffoldImportModal.style.display = 'block';
+    if (elements.scaffoldImportModal) elements.scaffoldImportModal.style.display = 'flex'; // Changed to flex for centering
 }
 
 function closeScaffoldModal() {
     if (elements.scaffoldImportModal) elements.scaffoldImportModal.style.display = 'none';
 }
 
-async function processScaffoldJson() {
+async function processScaffoldJsonInput() {
     const jsonString = elements.aiScaffoldJsonInput ? elements.aiScaffoldJsonInput.value.trim() : '';
     if (!jsonString) {
         notificationSystem.showNotification("Scaffold JSON input is empty.", { duration: 3000 });
         return;
     }
 
-    let scaffoldOperations;
+    let scaffoldData;
     try {
-        scaffoldOperations = JSON.parse(jsonString);
-        if (!Array.isArray(scaffoldOperations) || scaffoldOperations.some(op => op.operation !== 'create_scaffold_file' || typeof op.filePath !== 'string' || typeof op.content !== 'string')) {
-            throw new Error("Invalid scaffold format. Expects an array of 'create_scaffold_file' operations with 'filePath' and 'content'.");
+        scaffoldData = JSON.parse(jsonString);
+        if (typeof scaffoldData !== 'object' || scaffoldData === null ||
+            typeof scaffoldData.structureString !== 'string' || !scaffoldData.structureString.trim() ||
+            !Array.isArray(scaffoldData.fileContents) ||
+            scaffoldData.fileContents.some(fc => typeof fc.filePath !== 'string' || typeof fc.content !== 'string')) {
+            throw new Error("Invalid scaffold format. Expects a JSON object with 'structureString' (string) and 'fileContents' (array of {filePath, content} objects).");
         }
     } catch (error) {
         errorHandler.showError({
@@ -57,12 +58,7 @@ async function processScaffoldJson() {
         return;
     }
 
-    if (scaffoldOperations.length === 0) {
-        notificationSystem.showNotification("Scaffold JSON contains no operations.", { duration: 3000 });
-        return;
-    }
-
-    notificationSystem.showNotification("Creating project from scaffold...", { duration: 2000 });
+    notificationSystem.showNotification("Creating project from AI scaffold...", { duration: 2000 });
     closeScaffoldModal();
     resetUIForProcessing("Building project from AI scaffold...");
 
@@ -75,120 +71,26 @@ async function processScaffoldJson() {
     appState.currentEditingFile = null;
 
     try {
-        let projectName = 'AI_Scaffolded_Project'; // Default
-        const firstPathDirs = scaffoldOperations[0].filePath.split('/');
-        if (firstPathDirs.length > 0 && firstPathDirs[0] !== "") { // Check if first part is not empty (e.g. not absolute path)
-             // If the path is like "my-app/index.html", projectName is "my-app"
-             // If path is "index.html", projectName remains default or could be taken from user input later
-            if (firstPathDirs.length > 1 || (firstPathDirs.length === 1 && scaffoldOperations[0].filePath.includes('/'))) {
-                 projectName = firstPathDirs[0];
+        const { rootNode, allFilesList, allFoldersList, maxDepthVal, projectName } = parseStructureString(scaffoldData.structureString);
+
+        // Populate file content and update sizes
+        const fileContentsMap = new Map(scaffoldData.fileContents.map(f => [f.filePath, f.content]));
+
+        allFilesList.forEach(fileInfo => {
+            const content = fileContentsMap.get(fileInfo.path);
+            if (content !== undefined) {
+                fileInfo.size = content.length; // Update size based on actual content
+                fileEditor.setEditedContent(fileInfo.path, content, false); // Store content
+            } else {
+                // This case means a file was in structureString but not in fileContents.
+                // It will be treated as an empty file.
+                console.warn(`[Scaffold] File "${fileInfo.path}" was in structure string but not in fileContents. Creating as empty.`);
+                fileInfo.size = 0;
+                fileEditor.setEditedContent(fileInfo.path, "", false);
             }
-        }
+        });
 
-
-        const rootNode = {
-            name: projectName,
-            path: projectName,
-            type: 'folder',
-            depth: 0,
-            children: [],
-            fileCount: 0,
-            dirCount: 0,
-            totalSize: 0,
-            fileTypes: {},
-            entryHandle: null
-        };
-        const allFilesList = [];
-        const folderMap = new Map([[projectName, rootNode]]);
-        // Initialize allFoldersList with the root node details including depth
-        const allFoldersList = [{ name: rootNode.name, path: rootNode.path, depth: 0, entryHandle: null }];
-
-
-        for (const op of scaffoldOperations) {
-            const fullFilePath = op.filePath;
-            const content = op.content;
-            const pathParts = fullFilePath.split('/');
-            const fileName = pathParts.pop();
-
-            let currentParentNode = rootNode;
-            let currentPathForChildBuild = ""; // Start from empty to build absolute-like paths for map keys
-
-            // If the scaffold paths already include the root project name,
-            // we need to handle it gracefully.
-            if (pathParts.length > 0 && pathParts[0] === projectName) {
-                currentPathForChildBuild = projectName; // Start with the root name
-                // currentParentNode is already rootNode
-                for (let i = 1; i < pathParts.length; i++) { // Start from 1 to skip root name already handled
-                    const part = pathParts[i];
-                    const folderPath = currentPathForChildBuild + '/' + part;
-                    if (!folderMap.has(folderPath)) {
-                        const newFolder = {
-                            name: part,
-                            path: folderPath,
-                            type: 'folder',
-                            depth: i +1, // Depth from root
-                            children: [], fileCount: 0, dirCount: 0, totalSize: 0, fileTypes: {}, entryHandle: null
-                        };
-                        folderMap.set(folderPath, newFolder);
-                        currentParentNode.children.push(newFolder);
-                        allFoldersList.push({ name: newFolder.name, path: newFolder.path, depth: newFolder.depth, entryHandle: null });
-                        currentParentNode = newFolder;
-                    } else {
-                        currentParentNode = folderMap.get(folderPath);
-                    }
-                    currentPathForChildBuild = folderPath;
-                }
-            } else { // Paths are relative to the implied project root (e.g. "css/style.css")
-                currentPathForChildBuild = projectName; // Base it on the determined project name
-                for (let i = 0; i < pathParts.length; i++) {
-                    const part = pathParts[i];
-                    const folderPath = currentPathForChildBuild + '/' + part;
-                    if (!folderMap.has(folderPath)) {
-                        const newFolder = {
-                            name: part,
-                            path: folderPath,
-                            type: 'folder',
-                            depth: i + 1, // Depth from root
-                            children: [], fileCount: 0, dirCount: 0, totalSize: 0, fileTypes: {}, entryHandle: null
-                        };
-                        folderMap.set(folderPath, newFolder);
-                        currentParentNode.children.push(newFolder);
-                        allFoldersList.push({ name: newFolder.name, path: newFolder.path, depth: newFolder.depth, entryHandle: null });
-                        currentParentNode = newFolder;
-                    } else {
-                        currentParentNode = folderMap.get(folderPath);
-                    }
-                    currentPathForChildBuild = folderPath;
-                }
-            }
-            
-            // The final path for the file should be prefixed with the rootNode.name if not already
-            let finalFilePathForAppState = fullFilePath;
-            if (!fullFilePath.startsWith(projectName + '/')) {
-                finalFilePathForAppState = projectName + '/' + fullFilePath;
-                 // Handle case where fullFilePath might be "index.html" (no leading slash needed)
-                if (fullFilePath.split('/').length === 1 && !fullFilePath.includes('/')) {
-                     finalFilePathForAppState = projectName + '/' + fullFilePath;
-                }
-            }
-             // If fullFilePath was "my-project/src/file.js", and projectName is "my-project", final path is correct
-             // If fullFilePath was "src/file.js", and projectName is "my-project", final path becomes "my-project/src/file.js"
-
-
-            const fileInfo = {
-                name: fileName,
-                path: finalFilePathForAppState,
-                type: 'file',
-                size: content.length,
-                extension: getFileExtension(fileName),
-                depth: finalFilePathForAppState.split('/').length -1,
-                entryHandle: null
-            };
-            currentParentNode.children.push(fileInfo);
-            allFilesList.push(fileInfo);
-            fileEditor.setEditedContent(finalFilePathForAppState, content, false);
-        }
-
+        // Recalculate folder stats after file sizes are known
         function calculateStatsRecursive(folder) {
             folder.fileCount = 0; folder.dirCount = 0; folder.totalSize = 0; folder.fileTypes = {};
             folder.children.forEach(child => {
@@ -203,9 +105,9 @@ async function processScaffoldJson() {
                         folder.fileTypes[ext].count += data.count;
                         folder.fileTypes[ext].size += data.size;
                     });
-                } else {
+                } else { // File
                     folder.fileCount++;
-                    folder.totalSize += child.size;
+                    folder.totalSize += child.size; // Use the updated size
                     const ext = child.extension;
                     if (!folder.fileTypes[ext]) folder.fileTypes[ext] = { count: 0, size: 0 };
                     folder.fileTypes[ext].count++;
@@ -215,18 +117,13 @@ async function processScaffoldJson() {
         }
         calculateStatsRecursive(rootNode);
 
-        let maxDepthVal = 0;
-        allFilesList.forEach(f => { if(f.depth > maxDepthVal) maxDepthVal = f.depth; });
-        allFoldersList.forEach(f => { if(f.depth > maxDepthVal) maxDepthVal = f.depth; });
-
-
         appState.fullScanData = {
             directoryData: rootNode,
             allFilesList: allFilesList,
             allFoldersList: allFoldersList,
             maxDepth: maxDepthVal,
-            deepestPathExample: rootNode.path, // Placeholder, can be improved
-            emptyDirCount: 0 // Placeholder, can be improved
+            deepestPathExample: rootNode.path,
+            emptyDirCount: countEmptyDirsInParsedStructure(rootNode)
         };
 
         appState.selectionCommitted = false;
@@ -234,29 +131,153 @@ async function processScaffoldJson() {
 
         if (elements.treeContainer) elements.treeContainer.innerHTML = '';
         treeView.renderTree(appState.fullScanData.directoryData, elements.treeContainer);
-        treeView.setAllSelections(true);
+        treeView.setAllSelections(true); // Select all by default for new scaffold
 
+        // Commit all selections by default for a new scaffold
         const allPaths = new Set([...allFilesList.map(f => f.path), ...allFoldersList.map(f => f.path)]);
-        appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, allPaths); // Use fileSystem
+        appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, allPaths);
         appState.selectionCommitted = true;
 
-        if(elements.globalStatsPanel) elements.globalStatsPanel.style.display = 'block';
-        if(elements.sidebarToolsContainer) elements.sidebarToolsContainer.style.display = 'flex';
-        if(elements.visualOutputContainer) elements.visualOutputContainer.style.display = 'flex';
-        if(elements.textOutputContainerOuter) elements.textOutputContainerOuter.style.display = 'flex';
-        if(elements.aiPatchPanel) elements.aiPatchPanel.style.display = 'block';
 
+        if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'flex';
+        if (elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) {
+             elements.visualOutputContainer.style.display = 'flex';
+        }
+        if (elements.mainView) elements.mainView.style.display = 'flex';
+        if (elements.treeViewControls) elements.treeViewControls.style.display = 'flex';
+        if (elements.generalActions) elements.generalActions.style.display = 'flex';
+
+
+        uiManager.activateTab('textReportTab'); // Default to text report view
         uiManager.refreshAllUI();
         enableUIControls();
         if (elements.loader) elements.loader.classList.remove('visible');
-        notificationSystem.showNotification(`Project '${projectName}' created from scaffold!`, { duration: 3000 });
+        notificationSystem.showNotification(`Project '${projectName}' created from AI scaffold!`, { duration: 3000 });
 
     } catch (e) {
-        console.error("Error processing scaffold operations:", e);
+        console.error("Error processing scaffold input:", e);
         errorHandler.showError({ name: "ScaffoldProcessError", message: e.message, stack: e.stack });
         if (elements.loader) elements.loader.classList.remove('visible');
-        // Potentially revert to a clean state or show a specific error UI for failed scaffold
         showFailedUI("Failed to create project from scaffold. Check console.");
     }
 }
+
+
+function parseStructureString(structureStr) {
+    let str = structureStr.trim();
+    const rootNameMatch = str.match(/^([^(]+)\((.*)\)$/);
+    if (!rootNameMatch) {
+        throw new Error("Invalid structure string format: Does not match RootName(...). String: " + structureStr);
+    }
+    const projectName = rootNameMatch[1].trim();
+    let currentContent = rootNameMatch[2];
+
+    const rootNode = {
+        name: projectName,
+        path: projectName,
+        type: 'folder',
+        depth: 0,
+        children: [],
+        fileCount: 0, dirCount: 0, totalSize: 0, fileTypes: {}, // These will be calculated later
+        entryHandle: null
+    };
+
+    const allFiles = [];
+    const allFolders = [{ name: rootNode.name, path: rootNode.path, depth: 0, entryHandle: null }];
+    let maxDepth = 0;
+
+    function parseChildren(parentPath, parentDepth, childrenString, parentNode) {
+        let unprocessed = childrenString.trim();
+        let currentSegment = "";
+        let nestingLevel = 0;
+
+        if (!unprocessed) return; // Empty folder case like "folder()"
+
+        for (let i = 0; i < unprocessed.length; i++) {
+            const char = unprocessed[i];
+            currentSegment += char;
+
+            if (char === '(') {
+                nestingLevel++;
+            } else if (char === ')') {
+                nestingLevel--;
+            }
+
+            if (nestingLevel === 0 && (char === ',' || i === unprocessed.length - 1)) {
+                // Found a complete item (file or folder block)
+                let itemStr = (char === ',') ? currentSegment.slice(0, -1).trim() : currentSegment.trim();
+                currentSegment = ""; // Reset for next segment
+
+                const folderMatch = itemStr.match(/^([^(]+)\((.*)\)$/);
+                const currentDepth = parentDepth + 1;
+                if (currentDepth > maxDepth) maxDepth = currentDepth;
+
+                if (folderMatch) { // It's a folder
+                    const folderName = folderMatch[1].trim();
+                    const folderPath = `${parentPath}/${folderName}`;
+                    const folderNode = {
+                        name: folderName,
+                        path: folderPath,
+                        type: 'folder',
+                        depth: currentDepth,
+                        children: [],
+                        entryHandle: null
+                        // Stats will be calculated later
+                    };
+                    parentNode.children.push(folderNode);
+                    allFolders.push({ name: folderName, path: folderPath, depth: currentDepth, entryHandle: null });
+                    parseChildren(folderPath, currentDepth, folderMatch[2], folderNode); // Recurs
+                } else { // It's a file
+                    const fileName = itemStr.trim();
+                    if (fileName) { // Ensure it's not an empty string (e.g. from "folder(,) " )
+                        const filePath = `${parentPath}/${fileName}`;
+                        const fileNode = {
+                            name: fileName,
+                            path: filePath,
+                            type: 'file',
+                            size: 0, // Placeholder, will be updated from fileContents
+                            extension: getFileExtension(fileName),
+                            depth: currentDepth,
+                            entryHandle: null
+                        };
+                        parentNode.children.push(fileNode);
+                        allFiles.push(fileNode); // Add placeholder to allFiles list
+                    }
+                }
+            }
+        }
+         // Sort children: folders first, then alphabetically
+        parentNode.children.sort((a, b) => {
+            if (a.type === 'folder' && b.type === 'file') return -1;
+            if (a.type === 'file' && b.type === 'folder') return 1;
+            return a.name.localeCompare(b.name);
+        });
+    }
+
+    parseChildren(projectName, 0, currentContent, rootNode);
+
+    return {
+        projectName: projectName,
+        rootNode: rootNode,
+        allFilesList: allFiles,
+        allFoldersList: allFolders,
+        maxDepthVal: maxDepth
+    };
+}
+
+
+function countEmptyDirsInParsedStructure(node) {
+    let count = 0;
+    if (node.type === 'folder') {
+        if (node.children.length === 0) {
+            count = 1;
+        } else {
+            for (const child of node.children) {
+                count += countEmptyDirsInParsedStructure(child);
+            }
+        }
+    }
+    return count;
+}
+
 // --- ENDFILE: loomdir/js/scaffoldImporter.js ---

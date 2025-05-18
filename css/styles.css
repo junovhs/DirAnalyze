@@ -10,38 +10,41 @@
     --animation-speed: 0.3s;
     --shadow-small: 0 2px 4px rgba(0, 0, 0, 0.05);
     --shadow-medium: 0 4px 8px rgba(0, 0, 0, 0.1);
-    --scroll-thumb-width: 8px;
+    --scroll-thumb-width: 10px; /* Slightly wider for easier grabbing */
     --transition-smooth: all 0.2s ease-in-out;
 
-    /* Minimal Theme Variables */
+    /* Minimal Theme Variables - "Apple-Inspired" Refresh */
     --bg-color: #ffffff;
-    --text-color: #000000;
-    --accent-color: #0066cc;
-    --dim-color: #707070;
-    --border-color: #e0e0e0;
-    --panel-bg: #fafafa;
-    --highlight-bg: #f5f5f5;
-    --font-main: 'Roboto Mono', monospace;
-    --terminal-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    --header-color: #000000;
-    --button-bg: #e6e6e6;
-    --button-text: #000000;
-    --button-hover-bg: #cccccc;
+    --text-color: #1d1d1f; /* Darker, more standard text color */
+    --accent-color: #007aff; /* Apple blue */
+    --dim-color: #8a8a8e;   /* Slightly adjusted dim grey */
+    --border-color: #d1d1d6; /* Apple-like border grey */
+    --panel-bg: #f9f9f9;    /* Off-white, light panel background */
+    --highlight-bg: #e5e5ea; /* Light highlight */
+    --font-main: 'Roboto Mono', monospace; /* Monospace for data-heavy areas */
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"; /* UI font */
+
+    --terminal-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); /* Softer shadow */
+    --header-color: #000000; /* Classic black for headers */
+    --button-bg: #f5f5f7; /* Light grey buttons */
+    --button-text: var(--text-color);
+    --button-hover-bg: #e9e9eb; /* Slightly darker hover */
     --notification-bg: rgba(0, 0, 0, 0.85);
     --notification-border: var(--accent-color);
-    --scroll-track-color: #f5f5f5;
-    --scroll-thumb-color: #d0d0d0;
-    --scroll-thumb-hover-color: #a0a0a0;
-    --status-saved: #2e7d32;
-    --status-unsaved: #f57c00;
-    --status-error: #c62828;
+    --scroll-track-color: var(--highlight-bg); /* Track matches highlight */
+    --scroll-thumb-color: #c7c7cc; /* Apple-like scrollbar thumb */
+    --scroll-thumb-hover-color: #aeaeb2; /* Darker on hover */
+    --status-saved: #34c759; /* Apple green */
+    --status-unsaved: #ff9f0a; /* Apple orange (adjusted) */
+    --status-error: #ff3b30; /* Apple red */
     --status-loading: var(--accent-color);
     --status-unchanged: var(--dim-color);
 
     /* New Layout Variables */
-    --left-sidebar-width: 290px;
-    --right-stats-panel-width: 310px;
+    --initial-left-sidebar-width: 300px;
+    --right-stats-panel-width: 320px;
     --tabs-height: 40px;
+    --resizer-width: 6px;
 }
 
 /* Animations */
@@ -52,44 +55,62 @@
 html, body {
     height: 100%;
     margin: 0;
-    overflow: hidden; /* Prevent body scroll, panels will scroll */
+    overflow: hidden;
+    font-family: var(--font-ui);
 }
 
 body {
-    font-family: var(--font-main);
     background-color: var(--bg-color);
     color: var(--text-color);
     display: flex;
     flex-direction: column;
     font-size: 14px;
-    letter-spacing: 0.25px;
-    line-height: 1.4;
+    letter-spacing: 0.1px; /* Adjusted for UI font */
+    line-height: 1.45; /* Slightly more spacious */
     transition: var(--transition-smooth);
 }
 
 /* New App Container Layout */
 #appContainer {
     display: flex;
-    flex-direction: row; /* Main 3-column layout */
+    flex-direction: row;
     flex-grow: 1;
     height: 100vh;
     overflow: hidden;
 }
 
-/* Left Sidebar (was #sidebar) */
+/* Left Sidebar */
 #leftSidebar {
-    width: var(--left-sidebar-width);
+    width: var(--initial-left-sidebar-width);
+    min-width: 220px; /* Min width */
+    max-width: 60%;   /* Max width relative to viewport */
     flex-shrink: 0;
-    background-color: var(--panel-bg); /* Slightly different for distinction */
+    background-color: var(--panel-bg);
     padding: 15px;
     display: flex;
     flex-direction: column;
-    gap: 12px; /* Adjusted gap */
+    gap: 12px;
     overflow-y: auto;
-    border-right: 1px solid var(--border-color);
+    /* border-right: 1px solid var(--border-color); Removed, resizer takes its place visual */
     height: 100%;
     box-sizing: border-box;
+    position: relative;
 }
+
+/* Sidebar Resizer Handle */
+#sidebarResizer {
+    width: var(--resizer-width);
+    background-color: var(--border-color);
+    cursor: col-resize;
+    flex-shrink: 0;
+    z-index: 10;
+    transition: background-color 0.2s ease-in-out;
+    position: relative; /* To ensure it's part of the flex flow correctly */
+}
+#sidebarResizer:hover, #sidebarResizer.resizing {
+    background-color: var(--accent-color);
+}
+
 
 #sidebarHeader {
     text-align: center;
@@ -101,6 +122,7 @@ body {
     font-size: 1.5em;
     color: var(--header-color);
     margin: 0;
+    font-weight: 500;
 }
 .header-logo {
     height: 0.9em;
@@ -118,7 +140,7 @@ body {
 
 #dropZone {
     width: 100%;
-    min-height: 130px; /* Slightly smaller */
+    min-height: 130px;
     border: 2px dashed var(--accent-color);
     border-radius: var(--border-radius-medium);
     display: flex;
@@ -129,7 +151,7 @@ body {
     transition: var(--transition-smooth);
     cursor: pointer;
     box-shadow: var(--terminal-shadow);
-    margin-bottom: 10px; /* Space before import button */
+    margin-bottom: 10px;
 }
 #dropZone.dragover {
     background-color: var(--highlight-bg);
@@ -138,11 +160,11 @@ body {
     transform: scale(1.01);
 }
 .drop-content { padding: 10px; }
-.drop-icon { font-size: 1.8rem; margin-bottom: 6px; color: var(--accent-color); } /* Smaller */
-.drop-text { font-size: 0.85rem; margin-bottom: 6px; color: var(--text-color); } /* Smaller */
-.drop-alternative { margin: 4px 0; font-size: 0.75rem; color: var(--dim-color); } /* Smaller */
+.drop-icon { font-size: 1.8rem; margin-bottom: 6px; color: var(--accent-color); }
+.drop-text { font-size: 0.85rem; margin-bottom: 6px; color: var(--text-color); }
+.drop-alternative { margin: 4px 0; font-size: 0.75rem; color: var(--dim-color); }
 .folder-select-btn {
-    padding: 5px 10px; /* Smaller */
+    padding: 6px 12px; /* Slightly more padding */
     background-color: var(--button-bg);
     color: var(--button-text);
     border-radius: var(--border-radius-small);
@@ -150,7 +172,8 @@ body {
     transition: var(--transition-smooth);
     margin-top: 4px;
     border: 1px solid var(--border-color);
-    font-size: 0.8em; /* Smaller */
+    font-size: 0.8em;
+    font-family: var(--font-ui);
 }
 .folder-select-btn:hover { background-color: var(--button-hover-bg); box-shadow: var(--shadow-small); }
 
@@ -167,7 +190,7 @@ body {
 .sidebar-hr {
     border: none;
     border-top: 1px solid var(--border-color);
-    margin: 8px 0; /* Adjusted margin */
+    margin: 10px 0; /* Consistent margin */
 }
 
 #treeViewControls, #generalActions {
@@ -179,30 +202,31 @@ body {
 .utility-button {
     width: 100%;
     text-align: left;
-    padding: 8px 10px;
+    padding: 9px 12px; /* Slightly larger padding */
+    font-family: var(--font-ui); /* UI font for buttons */
+    font-size: 0.85em; /* Consistent font size */
 }
 
-/* Directory Tree container within left sidebar */
 #leftSidebar #visualOutputContainer {
-    flex-grow: 1; /* Allow tree to take available space */
-    border: 1px solid var(--border-color); /* Add border for clarity */
+    flex-grow: 1;
+    border: 1px solid var(--border-color);
     box-shadow: var(--terminal-shadow);
     padding: 10px;
-    background-color: var(--bg-color); /* Match panel background */
+    background-color: var(--bg-color);
     border-radius: var(--border-radius-medium);
-    display: flex; /* To make treeContainer fill it */
+    display: flex;
     flex-direction: column;
-    overflow: hidden; /* Important */
-    min-height: 150px; /* Ensure it's not too small */
+    overflow: hidden;
+    min-height: 200px; /* Increased min-height */
 }
 #leftSidebar #visualOutputContainer .panel-header {
-    padding-bottom: 5px;
-    margin-bottom: 5px;
+    padding-bottom: 6px; /* Adjusted */
+    margin-bottom: 6px; /* Adjusted */
     flex-shrink: 0;
 }
 #leftSidebar #treeContainer {
     flex-grow: 1;
-    overflow-y: auto; /* Scroll tree content */
+    overflow-y: auto;
 }
 
 /* Main View (Center Column) */
@@ -210,127 +234,140 @@ body {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: hidden; /* Critical for child flex scroll */
     height: 100%;
     background-color: var(--bg-color);
-    padding: 15px; /* Padding around tab area and content */
+    padding: 15px;
     box-sizing: border-box;
-    gap: 10px; /* Gap between tabs and content area */
+    gap: 10px;
+    border-left: 1px solid var(--border-color); /* Add border to separate from resizer */
 }
 
 #mainViewTabs {
     display: flex;
-    gap: 1px; /* Minimal gap between tab buttons */
+    gap: 1px;
     border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0; /* Prevent tabs from shrinking */
+    flex-shrink: 0;
     height: var(--tabs-height);
-    align-items: flex-end; /* Align buttons to the bottom of the container */
+    align-items: flex-end;
 }
 
 .tab-button {
     padding: 8px 15px;
-    font-family: var(--font-main);
+    font-family: var(--font-ui);
     font-size: 0.9em;
-    background-color: var(--button-bg);
-    color: var(--button-text);
-    border: 1px solid var(--border-color);
+    font-weight: 500; /* Slightly bolder tabs */
+    background-color: transparent; /* Cleaner look */
+    color: var(--dim-color); /* Dim inactive tabs */
+    border: 1px solid transparent; /* Invisible border for spacing */
     border-bottom: none;
     border-radius: var(--border-radius-small) var(--border-radius-small) 0 0;
     cursor: pointer;
     transition: var(--transition-smooth);
-    margin-bottom: -1px; /* Overlap with tabContentArea border */
+    margin-bottom: -1px;
     position: relative;
 }
 .tab-button:hover {
-    background-color: var(--button-hover-bg);
+    color: var(--text-color);
+    background-color: var(--highlight-bg);
 }
 .tab-button.active {
-    background-color: var(--panel-bg);
+    background-color: var(--panel-bg); /* Match content area for seamless tab */
     border-color: var(--border-color);
-    /* border-bottom: 1px solid var(--panel-bg); */ /* Removed to use margin-bottom -1px */
+    border-bottom-color: var(--panel-bg); /* Make bottom border same as bg to "lift" tab */
     color: var(--accent-color);
-    font-weight: 500;
-    z-index: 1; /* Bring active tab border above content area's top border */
+    z-index: 1;
 }
 
 #tabContentArea {
     flex-grow: 1;
-    overflow: hidden; /* Parent handles overflow, children flex */
+    overflow: hidden; /* Children manage their scroll */
     position: relative;
-    display: flex;
+    display: flex; /* To allow .tab-content-item to fill it */
     flex-direction: column;
-    border: 1px solid var(--border-color); /* Border around content area */
-    border-radius: 0 var(--border-radius-small) var(--border-radius-small) var(--border-radius-small);
+    border: 1px solid var(--border-color);
+    border-top: none; /* Top border handled by active tab or #mainViewTabs */
+    border-radius: 0 0 var(--border-radius-medium) var(--border-radius-medium);
     background-color: var(--panel-bg);
 }
 
 .tab-content-item {
-    display: none; /* Hidden by default */
-    flex-grow: 1;
-    height: 100%;
-    overflow: hidden; /* Individual tab content should manage its own scroll if needed */
-    /* Panels inside will handle their own padding and scrolling */
+    display: none;
+    flex-grow: 1; /* Fill #tabContentArea */
+    /* height: 100%; Removed, flex-grow handles it */
+    overflow: hidden; /* This panel itself should not scroll, its children might */
 }
 .tab-content-item.active {
-    display: flex; /* Show active tab */
-    flex-direction: column; /* For panel inside */
+    display: flex;
+    flex-direction: column; /* Ensure children stack correctly */
 }
 
-/* Panels within Tab Content Area */
 #tabContentArea .content-panel {
     flex-grow: 1;
     margin-bottom: 0;
     width: 100%;
     box-sizing: border-box;
-    border: none; /* Remove individual panel borders if tabContentArea has one */
-    box-shadow: none; /* Remove individual panel shadow */
-    border-radius: 0; /* No radius if fitting into tab area */
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
     display: flex;
-    flex-direction: column; /* Ensure panels are flex containers */
+    flex-direction: column;
+    overflow: hidden; /* Panels should not scroll, their content should */
 }
 #tabContentArea #aiPatchPanel {
-    background-color: var(--panel-bg); /* Match other panels */
+    background-color: var(--panel-bg);
 }
 
-/* Panel Headers */
 .panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 8px;
-    margin-bottom: 8px;
+    padding: 10px 15px; /* Consistent padding */
+    margin-bottom: 0; /* Remove margin if padding is on panel */
     flex-shrink: 0;
+    background-color: var(--highlight-bg); /* Light header background */
 }
 .panel-header h2 {
     margin: 0;
-    color: var(--accent-color);
-    font-size: 1.1em; /* Slightly smaller */
+    color: var(--header-color); /* Darker header text */
+    font-size: 1.05em; /* Slightly smaller */
+    font-weight: 500;
 }
 
-/* Content Areas within Panels (e.g., textOutput, selectedFilesContainer) */
-#textOutput,
-#selectedFilesContainer,
-#aiPatchOutputLog,
-#aiPatchInput { /* aiPatchInput is a textarea */
+/* Text Output (Report) Specifics */
+#textOutputContainerOuter {
+    padding: 0; /* Panel itself has no padding */
+}
+#textOutput {
+    font-family: var(--font-main);
+    white-space: pre; /* Keep pre for line breaks, but rely on overflow-y and height */
+    line-height: 1.6; /* More readable for report */
+    font-size: 0.85em; /* Good balance for monospace */
+    padding: 15px 20px; /* Generous padding inside the pre */
+    background-color: var(--bg-color);
+    border-radius: 0; /* No radius if it's filling the panel */
+    color: var(--text-color);
+    overflow-y: auto; /* THIS ENABLES SCROLLING for the text report */
+    flex-grow: 1; /* Crucial for it to take space and enable scroll */
+    height: 0; /* Required for flex-grow to work with overflow in a flex column */
+    border-bottom: 1px solid var(--border-color); /* If buttons are below */
+}
+
+
+#selectedFilesContainer, /* For combine mode */
+#aiPatchOutputLog {    /* For AI patcher log */
     overflow-y: auto;
-    flex-grow: 1; /* Take available space */
+    flex-grow: 1;
+    height: 0; /* For flex scroll */
+    padding: 10px;
+    background-color: var(--bg-color);
 }
-#textOutput, #aiPatchOutputLog {
-    white-space: pre;
-    line-height: 1.4;
-    font-size: 0.85em;
-    padding: 10px; /* Add padding directly */
-    background-color: var(--bg-color); /* Differentiate from panel bg */
-    border-radius: var(--border-radius-small);
-}
-#selectedFilesContainer {
-    padding: 5px;
-}
+
 #aiPatchInput {
-    width: calc(100% - 16px); /* Full width minus padding */
+    width: calc(100% - 20px); /* Relative to its parent padding */
+    margin: 0 10px 10px 10px;
     padding: 8px;
-    margin-bottom: 8px;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-small);
     font-family: var(--font-main);
@@ -342,20 +379,21 @@ body {
     box-sizing: border-box;
 }
 #aiPatchPanel .patch-input-area, #aiPatchPanel .patch-results-area {
-    padding: 10px;
+    padding: 10px; /* Padding around inner sections */
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 #aiPatchPanel .patch-results-area {
-    flex-grow: 1; /* Allow log to take space */
-    overflow: hidden; /* Parent div for log */
+    flex-grow: 1;
+    overflow: hidden;
 }
 
 
-/* Right Stats Panel (was #globalStatsPanel) */
+/* Right Stats Panel */
 #rightStatsPanel {
     width: var(--right-stats-panel-width);
+    min-width: 240px; /* Min width for stats */
     flex-shrink: 0;
     background-color: var(--panel-bg);
     padding: 15px;
@@ -367,38 +405,39 @@ body {
     height: 100%;
     box-sizing: border-box;
 }
-#rightStatsPanel .panel-header h2 { /* Make stats header consistent */
-    font-size: 1.15em;
-    color: var(--accent-color);
+#rightStatsPanel .panel-header h2 {
+    font-size: 1.1em; /* Consistent with other panel headers */
+    color: var(--header-color);
+    font-weight: 500;
     margin: 0;
 }
-#globalStats, .file-type-stats { /* Children of rightStatsPanel */
+#globalStats, .file-type-stats {
     padding: 5px;
 }
 .selection-summary {
-    font-size: 0.85em; color: var(--dim-color); margin-bottom: 8px;
-    border-bottom: 1px dashed var(--border-color); padding-bottom: 8px;
+    font-size: 0.85em; color: var(--dim-color); margin-bottom: 10px;
+    border-bottom: 1px solid var(--border-color); padding-bottom: 10px;
 }
-.stat-item { margin-bottom: 6px; font-size: 0.85em; }
+.stat-item { margin-bottom: 7px; font-size: 0.85em; } /* Slightly more spacing */
 .stat-item strong { color: var(--text-color); font-weight: 500; }
 .file-type-stats table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.85em; }
-.file-type-stats th, .file-type-stats td { text-align: left; padding: 3px 5px; border-bottom: 1px solid var(--border-color); }
-.file-type-stats th { background-color: var(--highlight-bg); font-weight: 500; }
+.file-type-stats th, .file-type-stats td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border-color); } /* Increased padding */
+.file-type-stats th { background-color: var(--highlight-bg); font-weight: 500; color: var(--header-color); }
 
 
-/* Tree View (largely unchanged but context matters) */
-.tree ul { list-style-type: none; padding-left: 18px; margin: 1px 0; }
+/* Tree View */
+.tree ul { list-style-type: none; padding-left: 20px; margin: 2px 0; } /* Increased padding */
 .tree li { margin: 0; position: relative; padding: 0; display: flex; flex-direction: column; }
-.tree li > .item-line { display: flex; align-items: center; padding: 1px 0; }
-.tree li.filtered-out { opacity: var(--disabled-opacity); display: none; /* Hide completely */ }
-.tree li::before { content: ""; position: absolute; left: -10px; top: 0.6em; border-left: 1px solid var(--dim-color); height: 100%; }
-.tree > li:last-child::before { height: 0.6em; }
-.tree ul > li::before { top: -0.4em; height: calc(100% + 0.4em); }
-.tree ul > li:last-child::before { height: 1em; }
-.item-prefix { display: inline-flex; align-items: center; margin-right: 4px; }
-.tree .selector { margin-right: 5px; width: 11px; height: 11px; flex-shrink: 0; }
-.tree .selector:checked::after { left: 2.5px; top: -0.5px; width: 3px; height: 6px; }
-.tree .folder-toggle { display: inline-block; width: 12px; text-align: center; margin-right: 3px; cursor: pointer; color: var(--accent-color); font-size: 1em; line-height: 1; user-select: none; }
+.tree li > .item-line { display: flex; align-items: center; padding: 2px 0; } /* Increased padding */
+.tree li.filtered-out { display: none; } /* Keep it simple */
+.tree li::before { content: ""; position: absolute; left: -11px; top: 0.7em; border-left: 1px solid var(--dim-color); height: 100%; } /* Adjusted position */
+.tree > li:last-child::before { height: 0.7em; }
+.tree ul > li::before { top: -0.5em; height: calc(100% + 0.5em); } /* Adjusted */
+.tree ul > li:last-child::before { height: 1.2em; } /* Adjusted */
+.item-prefix { display: inline-flex; align-items: center; margin-right: 5px; } /* Increased margin */
+.tree .selector { margin-right: 6px; width: 12px; height: 12px; flex-shrink: 0; } /* Slightly larger */
+.tree .selector:checked::after { left: 3px; top: 0px; width: 4px; height: 7px; } /* Adjusted checkmark */
+.tree .folder-toggle { display: inline-block; width: 14px; text-align: center; margin-right: 4px; cursor: pointer; color: var(--accent-color); font-size: 1.1em; line-height: 1; user-select: none; } /* Larger toggle */
 .tree .icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--dim-color); }
 .tree .folder > .item-line > .item-prefix > .icon { color: var(--accent-color); }
 .tree .icon svg { width: 100%; height: 100%; vertical-align: middle; fill: currentColor; }
@@ -409,164 +448,155 @@ body {
 .tree .file.icon-json > .item-line > .item-prefix > .icon { color: #888888; }
 .tree .file.icon-md > .item-line > .item-prefix > .icon { color: #007acc; }
 .tree .file.icon-py > .item-line > .item-prefix > .icon { color: #3572A5; }
-.tree .name { cursor: pointer; flex-grow: 1; font-size: 0.9em; }
+.tree .name { cursor: pointer; flex-grow: 1; font-size: 0.9em; font-family: var(--font-ui); } /* UI font for names */
 .tree .folder > .item-line > .name { font-weight: 500; }
 .tree .name:hover { color: var(--accent-color); }
-.tree .stats { font-size: 0.75em; color: var(--dim-color); margin-left: 6px; white-space: nowrap; }
+.tree .stats { font-size: 0.75em; color: var(--dim-color); margin-left: 8px; white-space: nowrap; } /* Increased margin */
 .tree .folder > ul { display: block; }
 .tree .folder.collapsed > ul { display: none; }
-.file-actions { display: flex; gap: 5px; margin-left: 6px; }
-.edit-btn, .preview-btn { cursor: pointer; transition: transform 0.2s; font-size: 0.85em; }
+.file-actions { display: flex; gap: 6px; margin-left: 8px; } /* Increased gap/margin */
+.edit-btn, .preview-btn { cursor: pointer; transition: transform 0.2s; font-size: 0.9em; } /* Larger icons */
 .edit-btn:hover, .preview-btn:hover { transform: scale(1.1); color: var(--accent-color); }
 
 /* Button Styles */
-.button-container { margin-top: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 8px; padding: 0 10px 10px; flex-shrink:0; }
+.button-container { margin-top: auto; /* Push to bottom in flex layouts */ text-align: right; display: flex; justify-content: flex-end; gap: 10px; padding: 15px; /* More padding */ flex-shrink:0; border-top:1px solid var(--border-color); background-color: var(--panel-bg); }
 button.action-button {
     background-color: var(--button-bg); color: var(--button-text); border: 1px solid var(--border-color);
-    padding: 6px 10px; font-family: var(--font-main); font-size: 0.8em;
+    padding: 7px 14px; font-family: var(--font-ui); font-size: 0.85em;
     border-radius: var(--border-radius-small); cursor: pointer; transition: var(--transition-smooth);
-    letter-spacing: 0.5px; text-transform: uppercase;
+    letter-spacing: 0.3px; text-transform: none; /* No uppercase for cleaner look */
+    font-weight: 500;
 }
 button.action-button:hover:not(:disabled) { background-color: var(--button-hover-bg); box-shadow: var(--shadow-small); }
 button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
 
 /* Selected File Items (Combine Mode) */
-.selected-file { padding: 6px; margin-bottom: 3px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 0.85em; }
+.selected-file { padding: 7px 10px; margin-bottom: 3px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; font-family: var(--font-ui);}
 .selected-file:hover { background-color: var(--highlight-bg); }
 .selected-file-name { flex-grow: 1; word-break: break-all; }
-.selected-file-actions { display: flex; gap: 8px; margin-left: 8px; }
+.selected-file-actions { display: flex; gap: 10px; margin-left: 10px; }
 .selected-file-actions span { cursor: pointer; } .selected-file-actions span:hover { color: var(--accent-color); }
 .selected-file.binary-file { opacity: 0.7; }
-.binary-badge { background-color: var(--dim-color); color: var(--panel-bg); font-size: 0.65em; padding: 1px 3px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
-.binary-summary { font-size: 0.8em; color: var(--dim-color); padding: 6px; border-top: 1px dashed var(--border-color); margin-top: 6px; text-align: center; }
+.binary-badge { background-color: var(--dim-color); color: var(--panel-bg); font-size: 0.7em; padding: 2px 4px; border-radius: 3px; margin-left: 5px; vertical-align: middle; }
+.binary-summary { font-size: 0.8em; color: var(--dim-color); padding: 8px; border-top: 1px dashed var(--border-color); margin-top: 8px; text-align: center; }
 .binary-summary.warning { color: var(--warning-color); font-weight: bold; }
-.empty-notice { text-align: center; padding: 15px; color: var(--dim-color); font-size: 0.85em; flex-grow: 1; display:flex; align-items:center; justify-content:center;}
+.empty-notice { text-align: center; padding: 20px; color: var(--dim-color); font-size: 0.9em; flex-grow: 1; display:flex; align-items:center; justify-content:center;}
 
 
 /* --- MODAL STYLING --- */
-/* General Modal Backdrop - Used by diff-modal */
 .diff-modal {
-    display: none; /* Controlled by JS */
+    display: none;
     position: fixed;
     z-index: 2000;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
-    overflow: auto; /* In case content is too tall, though content itself should scroll */
-    background-color: rgba(0,0,0,0.65); /* Darker backdrop */
+    overflow: hidden;
+    background-color: rgba(0,0,0,0.65);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px; /* Give space around modal content */
+    padding: 20px;
     box-sizing: border-box;
 }
-
-/* General Modal Content Box - Used by diff-modal-content */
 .diff-modal-content {
-    background-color: var(--panel-bg);
-    padding: 0; /* Let children define padding */
-    border: 1px solid var(--border-color);
+    background-color: var(--bg-color); /* Use main bg for modal */
+    padding: 0;
+    border: 1px solid #c8c8c8; /* Slightly darker border for modal pop */
     border-radius: var(--border-radius-medium);
-    width: auto; /* Let content dictate, up to max */
-    min-width: 320px; /* Prevent squishing */
+    width: auto;
+    min-width: 320px;
     max-width: 90%;
-    box-shadow: var(--shadow-medium);
-    position: relative; /* For close button, etc. */
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15); /* Stronger shadow for modals */
+    position: relative;
     display: flex;
     flex-direction: column;
-    max-height: 90vh; /* Prevent modal being taller than viewport */
-    overflow: hidden; /* Content inside should scroll */
+    max-height: 90vh;
+    overflow: hidden;
 }
-/* Specific max-widths for different modals */
 #scaffoldImportModal .diff-modal-content { max-width: 600px; }
 #aiPatchDiffModal .diff-modal-content { max-width: 900px; }
 #aiBriefingStudioModal .diff-modal-content { max-width: 700px; }
 
-/* Modal Header Area (Common for .diff-modal-content children) */
-.diff-modal-content > div:first-child:not(.modal-scrollable-content) { /* Targeting the header div */
+.diff-modal-content > div:first-child:not(.modal-scrollable-content) { /* Modal Header */
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 15px;
+    padding: 12px 18px; /* Increased padding */
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
+    background-color: var(--panel-bg); /* Header distinct from content */
 }
-.diff-modal-content > div:first-child h3 { margin: 0; font-size: 1.2em; color: var(--accent-color); }
+.diff-modal-content > div:first-child h3 { margin: 0; font-size: 1.15em; color: var(--header-color); font-weight: 500; }
 .diff-modal-close { color: var(--dim-color); font-size: 22px; font-weight: bold; cursor: pointer; line-height:1; background:none; border:none; padding:0 5px;}
 .diff-modal-close:hover, .diff-modal-close:focus { color: var(--text-color); }
 
-/* Scrollable content area within modals */
 .modal-scrollable-content {
-    padding: 15px;
+    padding: 18px; /* Increased padding */
     overflow-y: auto;
     flex-grow: 1;
 }
-/* For diff output containers specifically if they are direct children */
 #diffOutputContainer {
     white-space: pre-wrap; font-family: var(--font-main); font-size: 0.85em;
-    border: 1px solid var(--border-color); margin:15px;
-    padding: 8px; max-height: 60vh; overflow-y: auto; background-color: var(--bg-color);
-    line-height: 1.5; flex-grow:1; /* Grow if in flex context */
+    border: 1px solid var(--border-color); margin: 0; /* Removed margin if inside modal-scrollable */
+    padding: 10px; max-height: 60vh; overflow-y: auto; background-color: var(--bg-color);
+    line-height: 1.5; flex-grow:1;
 }
-#diffOutputContainer del, #aiPatchDiffOutput del { background-color: #ffe6e6; color: #c00; text-decoration: none; padding: 0 1px; }
-#diffOutputContainer ins, #aiPatchDiffOutput ins { background-color: #e6ffe6; color: #060; text-decoration: none; padding: 0 1px; }
+#diffOutputContainer del { background-color: #ffe6e6; color: #c00; text-decoration: none; padding: 0 1px; }
+#diffOutputContainer ins { background-color: #e6ffe6; color: #060; text-decoration: none; padding: 0 1px; }
 
-/* Modal Actions Area */
 .diff-modal-actions {
     text-align: right;
-    padding: 10px 15px;
+    padding: 12px 18px; /* Increased padding */
     border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
+    gap: 10px; /* Increased gap */
     flex-shrink: 0;
-    background-color: var(--highlight-bg);
+    background-color: var(--panel-bg); /* Consistent with header */
 }
-.diff-modal-actions .action-button.secondary { background-color: var(--dim-color); color: var(--panel-bg); border-color: var(--dim-color); }
-.diff-modal-actions .action-button.secondary:hover { background-color: var(--text-color); border-color: var(--text-color); }
+.diff-modal-actions .action-button.secondary { background-color: var(--highlight-bg); color: var(--text-color); border-color: var(--border-color); } /* Adjusted secondary */
+.diff-modal-actions .action-button.secondary:hover { background-color: var(--border-color); }
 
 
-/* File Preview, Editor, Error Panel Modals (using fixed + transform) */
 #filePreview, #fileEditor, .error-panel {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background-color: var(--panel-bg);
-    border: 1px solid var(--accent-color);
+    background-color: var(--bg-color);
+    border: 1px solid #c8c8c8;
     border-radius: var(--border-radius-medium);
-    box-shadow: var(--shadow-medium);
-    z-index: 2010; /* Higher than diff-modal if they can overlap, or adjust as needed */
-    display: none; /* Controlled by JS */
-    flex-direction: column; /* Common for these modals */
-    overflow: hidden; /* Content inside will scroll */
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    z-index: 2010;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
 }
 
-/* File Preview */
 #filePreview { padding: 0; width: 80%; max-width: 900px; height: 80vh; max-height: 700px; }
-#filePreviewTitle { padding: 10px 15px; margin:0; border-bottom: 1px solid var(--border-color); font-size:1.2em; color: var(--accent-color);}
-#filePreviewContentWrapper { flex-grow: 1; overflow: hidden; position: relative; display: flex; padding: 1px; /* for CM border */ }
-#filePreviewContent { flex-grow: 1; height: 100%; } /* Div for CodeMirror */
-#closePreview { position: absolute; top: 8px; right: 12px; background:transparent; border:none; color:var(--dim-color); font-size:1.8em; cursor:pointer; z-index:1; }
+#filePreviewTitle { padding: 12px 18px; margin:0; border-bottom: 1px solid var(--border-color); font-size:1.15em; color: var(--header-color); font-weight:500; background-color:var(--panel-bg);}
+#filePreviewContentWrapper { flex-grow: 1; overflow: hidden; position: relative; display: flex; padding: 1px; }
+#filePreviewContent { flex-grow: 1; height: 100%; }
+#closePreview { position: absolute; top: 10px; right: 15px; background:transparent; border:none; color:var(--dim-color); font-size:1.8em; cursor:pointer; z-index:1; }
 #closePreview:hover { color:var(--text-color); }
 
 
-/* File Editor */
 #fileEditor { z-index: 2020; width: 85vw; max-width: 1100px; height: 85vh; max-height: 800px; padding:0; }
-.editor-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background-color: var(--highlight-bg); border-bottom: 1px solid var(--border-color); flex-shrink:0; }
-.editor-header h3 { margin: 0; font-size: 1.1em; }
-.editor-container { flex-grow: 1; overflow: hidden; position: relative; display: flex; padding: 1px; /* For CM border */ }
-#editorContent { flex-grow: 1; height: 100%; } /* Div for CodeMirror */
-.editor-footer { padding: 6px 12px; border-top: 1px solid var(--border-color); font-size: 0.75em; color: var(--dim-color); background-color: var(--highlight-bg); flex-shrink:0; }
-.editor-status { padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin: 0 8px; display: inline-block; min-width: 100px; text-align: center; }
-.status-saved { color: var(--status-saved); } .status-unsaved { color: var(--status-unsaved); font-weight: bold; }
-.status-loading { color: var(--status-loading); } .status-error { color: var(--status-error); } .status-unchanged { color: var(--status-unchanged); }
-.editor-actions { display: flex; gap: 8px; }
-.editor-button { padding: 4px 8px; background-color: var(--button-bg); color: var(--button-text); border: 1px solid var(--border-color); border-radius: var(--border-radius-small); cursor: pointer; font-size: 0.8em; }
+.editor-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: var(--panel-bg); border-bottom: 1px solid var(--border-color); flex-shrink:0; }
+.editor-header h3 { margin: 0; font-size: 1.1em; font-weight:500; }
+.editor-container { flex-grow: 1; overflow: hidden; position: relative; display: flex; padding: 1px; }
+#editorContent { flex-grow: 1; height: 100%; }
+.editor-footer { padding: 8px 15px; border-top: 1px solid var(--border-color); font-size: 0.8em; color: var(--dim-color); background-color: var(--panel-bg); flex-shrink:0; }
+.editor-status { padding: 3px 7px; border-radius: var(--border-radius-small); font-size: 0.8em; margin: 0 10px; display: inline-block; min-width: 100px; text-align: center; }
+.status-saved { color: var(--status-saved); background-color: #e6f9e9; border: 1px solid #c1e8c5;}
+.status-unsaved { color: var(--status-unsaved); font-weight: bold; background-color: #fff8e1; border: 1px solid #ffecb3;}
+.status-loading { color: var(--status-loading); } .status-error { color: var(--status-error); background-color: #ffebee; border: 1px solid #ffcdd2;} .status-unchanged { color: var(--status-unchanged); }
+.editor-actions { display: flex; gap: 10px; }
+.editor-button { padding: 5px 10px; background-color: var(--button-bg); color: var(--button-text); border: 1px solid var(--border-color); border-radius: var(--border-radius-small); cursor: pointer; font-size: 0.85em; font-family:var(--font-ui); }
 .editor-button:hover:not(:disabled) { background-color: var(--button-hover-bg); } .editor-button:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
 
-/* CodeMirror specific styling */
 .CodeMirror {
   border: 1px solid var(--border-color);
   height: 100% !important;
@@ -578,68 +608,66 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
 .editor-container .CodeMirror {
     height: 100%;
     width: 100%;
-    border: none; /* Border handled by wrapper or content div */
+    border: none;
 }
 
 
-/* Error Report Panel */
 .error-panel { z-index: 2030; border-color: var(--error-color); width: 80%; max-width: 600px; padding:0; }
-.error-header { background-color: var(--error-color); color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; flex-shrink:0; }
-.error-header h3 { margin: 0; font-size: 1.2em; }
+.error-header { background-color: var(--error-color); color: white; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; flex-shrink:0; }
+.error-header h3 { margin: 0; font-size: 1.15em; font-weight: 500; }
 .error-header button { background: none; border: none; color: white; font-size: 1.6em; cursor: pointer; }
-.error-content { padding: 15px; font-size: 0.9em; flex-grow:1; overflow-y:auto; }
-.error-title { font-weight: bold; font-size: 1em; margin-bottom: 8px; color: var(--error-color); }
+.error-content { padding: 18px; font-size: 0.9em; flex-grow:1; overflow-y:auto; }
+.error-title { font-weight: 500; font-size: 1em; margin-bottom: 8px; color: var(--error-color); }
 .error-message { margin-bottom: 10px; }
-.error-details { padding: 8px; background-color: var(--highlight-bg); border-radius: var(--border-radius-small); margin-bottom: 10px; font-family: var(--font-main); white-space: pre-wrap; color: var(--dim-color); font-size: 0.8em; max-height: 150px; overflow-y: auto; }
+.error-details { padding: 10px; background-color: var(--highlight-bg); border-radius: var(--border-radius-small); margin-bottom: 10px; font-family: var(--font-main); white-space: pre-wrap; color: var(--dim-color); font-size: 0.8em; max-height: 150px; overflow-y: auto; }
 .error-suggestions { border-top: 1px solid var(--border-color); padding-top: 10px; } .error-suggestions ul { padding-left: 18px; margin-top: 4px; } .error-suggestions li { margin-bottom: 4px; }
 
-/* Notification */
-.notification { position: fixed; top: 0; right: 20px; background-color: var(--notification-bg); color: white; padding: 8px 12px; border-radius: 0 0 var(--border-radius-small) var(--border-radius-small); z-index: 2100; max-width: 280px; transform: translateY(-100%); border-left: 4px solid var(--notification-border); box-shadow: var(--shadow-medium); font-size: 0.85em; }
+.notification { position: fixed; top: 0; right: 20px; background-color: var(--notification-bg); color: white; padding: 10px 15px; border-radius: 0 0 var(--border-radius-medium) var(--border-radius-medium); z-index: 2100; max-width: 300px; transform: translateY(-100%); border-left: 4px solid var(--notification-border); box-shadow: var(--shadow-medium); font-size: 0.9em; }
 .notification.show { animation: slideDown 0.3s forwards, slideUp 0.3s forwards 3s; }
 
-/* Custom Scrollbars */
 ::-webkit-scrollbar { width: var(--scroll-thumb-width); height: var(--scroll-thumb-width); }
 ::-webkit-scrollbar-track { background: var(--scroll-track-color); border-radius: var(--border-radius-small); }
-::-webkit-scrollbar-thumb { background: var(--scroll-thumb-color); border-radius: var(--border-radius-small); }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb-color); border-radius: var(--border-radius-small); border: 2px solid var(--scroll-track-color); /* Create a 'border' around thumb */ }
 ::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover-color); }
 
-/* Initial Page Loader Styles */
 #pageLoader { position: fixed; top:0; left:0; width:100vw; height:100vh; background-color:var(--bg-color); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999; opacity:1; transition:opacity 0.5s ease-out .2s; }
 #pageLoader.hidden { opacity:0; pointer-events:none; }
 #pageLoader video { width:150px; height:150px; margin-bottom:15px; }
 #pageLoader p { font-size:1.1em; color:var(--text-color); }
 
-/* Responsive Adjustments for the new 3-column layout */
-@media (max-width: 1100px) { /* Wider breakpoint for 3 columns to start stacking */
+@media (max-width: 1100px) {
     #appContainer {
         flex-direction: column;
         height: auto;
-        overflow-y: auto; /* Allow body to scroll now */
+        overflow-y: auto;
     }
-    body { overflow-y: auto; } /* Ensure body scrolls */
+    body { overflow-y: auto; }
 
     #leftSidebar, #mainView, #rightStatsPanel {
-        width: 100%;
+        width: 100% !important;
+        max-width: 100% !important;
         height: auto;
         max-height: none;
         border-right: none;
         border-left: none;
         border-bottom: 1px solid var(--border-color);
-        overflow-y: visible; /* Let content expand */
+        overflow-y: visible;
     }
+    #sidebarResizer { display: none; }
     #mainView {
-        padding: 10px; /* Reduce padding */
+        padding: 10px;
+        border-left: none; /* No left border when stacked */
     }
-    #tabContentArea .content-panel {
-         min-height: 300px; /* Ensure tab panels have some height */
-         max-height: 60vh; /* But also constrain them */
+    #tabContentArea .content-panel, #textOutput {
+         min-height: 300px;
+         max-height: 60vh;
     }
     #leftSidebar #visualOutputContainer {
-        max-height: 50vh; /* Max height for tree on mobile-like views */
+        max-height: 50vh;
         min-height: 200px;
     }
     #rightStatsPanel {
-        border-bottom: none; /* Last item, no bottom border */
+        border-bottom: none;
     }
 }
 
@@ -649,22 +677,21 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
     #mainViewTabs {
         flex-wrap: wrap;
         padding-bottom: 5px;
-        height: auto; /* Allow tabs to wrap */
+        height: auto;
     }
-    .tab-button { padding: 6px 10px; font-size: 0.8em; margin-bottom: 5px; }
+    .tab-button { padding: 7px 12px; font-size: 0.85em; margin-bottom: 5px; }
     #rightStatsPanel { padding: 10px; }
 
     .drop-icon { font-size: 1.6rem; }
     .drop-text { font-size: 0.8rem; }
     .folder-select-btn { font-size: 0.75em; }
 
-    .panel-header h2 { font-size: 1.05em; }
-    #leftSidebar #visualOutputContainer .panel-header h2 { font-size: 1.05em; }
+    .panel-header h2 { font-size: 1.0em; }
+    #leftSidebar #visualOutputContainer .panel-header h2 { font-size: 1.0em; }
     #aiPatchInput { min-height: 60px; font-size: 0.8em; }
-    button.action-button, .utility-button { font-size: 0.75em; padding: 5px 8px; }
-    .editor-button { font-size: 0.75em; }
+    button.action-button, .utility-button { font-size: 0.8em; padding: 6px 10px; }
+    .editor-button { font-size: 0.8em; }
 
-    /* Modals full width on small screens */
     #fileEditor, #filePreview,
     #scaffoldImportModal .diff-modal-content,
     #aiPatchDiffModal .diff-modal-content,
@@ -675,7 +702,7 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
         height: auto;
         max-height: 90vh;
     }
-     .diff-modal { padding: 10px; } /* Reduce padding for backdrop */
+     .diff-modal { padding: 10px; }
 }
 
 body.loaded #appContainer {

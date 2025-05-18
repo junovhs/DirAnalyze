@@ -60,7 +60,8 @@
     <div id="appContainer">
         <aside id="leftSidebar">
             <header id="sidebarHeader">
-                 <h1><img src="logo.png" alt="Logo" class="header-logo">DirAnalyse</h1>
+                 <!-- Text "DirAnalyse" removed, img tag modified -->
+                 <img src="logo.png" alt="Logo" class="header-logo" style="width: 250px; height: auto; display: block; margin-left: auto; margin-right: auto;">
             </header>
 
             <div id="mainAction">
@@ -77,6 +78,7 @@
             </div>
 
             <button id="importAiScaffoldBtn" class="action-button utility-button" title="Import an AI-generated project scaffold (JSON)">IMPORT AI SCAFFOLD</button>
+            <button id="copyScaffoldPromptBtn" class="action-button utility-button" title="Copy AI prompt template for generating scaffold JSON">COPY SCAFFOLD PROMPT</button>
             <hr class="sidebar-hr">
 
             <div id="treeViewControls">
@@ -101,6 +103,8 @@
                 <button id="clearProjectBtn" class="action-button utility-button" disabled title="Clear all project data">CLEAR PROJECT</button>
             </div>
         </aside>
+
+        <div id="sidebarResizer"></div>
 
         <main id="mainView">
             <nav id="mainViewTabs">

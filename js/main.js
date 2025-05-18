@@ -13,10 +13,10 @@ import * as zipManager from './zipManager.js';
 import * as utils from './utils.js';
 import * as aiBriefingStudio from './aiBriefingStudio.js';
 import * as scaffoldImporter from './scaffoldImporter.js';
+import * as sidebarResizer from './sidebarResizer.js'; // Correctly imported
 
 export const appState = {
-    // isCombineMode: false, // Replaced by activeTab logic
-    activeTabId: 'textReportTab', // Default active tab
+    activeTabId: 'textReportTab',
     fullScanData: null,
     committedScanData: null,
     selectionCommitted: false,
@@ -28,7 +28,7 @@ export const appState = {
     isLoadingFileContent: false,
 };
 
-export let elements = {}; // Will be populated by populateElements
+export let elements = {};
 
 function populateElements() {
     const elementIds = {
@@ -39,26 +39,23 @@ function populateElements() {
         globalStatsDiv: 'globalStats',
         selectionSummaryDiv: 'selectionSummary',
         appContainer: 'appContainer',
-        // sidebar: 'sidebar', // Renamed
         leftSidebar: 'leftSidebar',
+        sidebarResizer: 'sidebarResizer',
         mainView: 'mainView',
         mainViewTabs: 'mainViewTabs',
         tabContentArea: 'tabContentArea',
         rightStatsPanel: 'rightStatsPanel',
-        // globalStatsPanel: 'globalStatsPanel', // Renamed/Replaced
-        // sidebarToolsContainer: 'sidebarToolsContainer', // Restructured
         treeViewControls: 'treeViewControls',
         generalActions: 'generalActions',
         loader: 'loader',
         textOutputEl: 'textOutput',
         copyReportButton: 'copyReportButton',
-        combineModePanel: 'combineModePanel', // Now inside a tab
+        combineModePanel: 'combineModePanel',
         selectedFilesContainer: 'selectedFilesContainer',
         copySelectedBtn: 'copySelectedBtn',
         selectAllBtn: 'selectAllBtn',
         deselectAllBtn: 'deselectAllBtn',
         commitSelectionsBtn: 'commitSelectionsBtn',
-        // viewModeToggleBtn: 'viewModeToggleBtn', // Removed
         expandAllBtn: 'expandAllBtn',
         collapseAllBtn: 'collapseAllBtn',
         downloadProjectBtn: 'downloadProjectBtn',
@@ -68,8 +65,8 @@ function populateElements() {
         filePreviewContentWrapper: 'filePreviewContentWrapper',
         filePreviewContent: 'filePreviewContent',
         closePreview: 'closePreview',
-        textOutputContainerOuter: 'textOutputContainerOuter', // Inside a tab
-        visualOutputContainer: 'visualOutputContainer', // Moved to left sidebar
+        textOutputContainerOuter: 'textOutputContainerOuter',
+        visualOutputContainer: 'visualOutputContainer',
         notification: 'notification',
         errorReport: 'errorReport',
         fileEditor: 'fileEditor',
@@ -79,7 +76,7 @@ function populateElements() {
         closeEditorBtn: 'closeEditorBtn',
         editorStatus: 'editorStatus',
         editorInfo: 'editorInfo',
-        aiPatchPanel: 'aiPatchPanel', // Inside a tab
+        aiPatchPanel: 'aiPatchPanel',
         aiPatchInput: 'aiPatchInput',
         applyAiPatchBtn: 'applyAiPatchBtn',
         aiPatchOutputLog: 'aiPatchOutputLog',
@@ -104,12 +101,12 @@ function populateElements() {
         generateAiBriefPackageBtn: 'generateAiBriefPackageBtn',
         cancelAiBriefBtn: 'cancelAiBriefBtn',
         importAiScaffoldBtn: 'importAiScaffoldBtn',
+        copyScaffoldPromptBtn: 'copyScaffoldPromptBtn',
         scaffoldImportModal: 'scaffoldImportModal',
         closeScaffoldModalBtn: 'closeScaffoldModalBtn',
         aiScaffoldJsonInput: 'aiScaffoldJsonInput',
         createProjectFromScaffoldBtn: 'createProjectFromScaffoldBtn',
         cancelScaffoldImportBtn: 'cancelScaffoldImportBtn',
-        // Tab content IDs
         textReportTab: 'textReportTab',
         combineModeTab: 'combineModeTab',
         aiPatcherTab: 'aiPatcherTab',
@@ -118,7 +115,7 @@ function populateElements() {
     for (const key in elementIds) {
         elements[key] = document.getElementById(elementIds[key]);
         if (!elements[key] && !['cancelScaffoldImportBtn', 'cancelAiBriefBtn', 'closeAiBriefingStudioModal', 'generateAiBriefPackageBtn', 'createProjectFromScaffoldBtn', 'closeScaffoldModalBtn', 'sidebarToolsContainer', 'viewModeToggleBtn', 'globalStatsPanel'].includes(key) ) {
-             // console.warn(`[populateElements] Element with ID '${elementIds[key]}' not found for key '${key}'.`);
+            // console.warn(`[populateElements] Element with ID '${elementIds[key]}' not found for key '${key}'.`);
         }
     }
 
@@ -128,13 +125,116 @@ function populateElements() {
     }
 }
 
+const scaffoldPromptTemplate = `Please generate a JSON object to define a project scaffold.
+The JSON object MUST have the following two top-level properties:
+
+1.  "structureString": A single string value representing the entire directory structure using parenthesis notation.
+    -   Syntax: \`RootFolder(item1,item2,NestedFolder(itemA,itemB),emptyFolder())\`
+    -   Items (files or folders) at the same level are separated by a comma \`,\`.
+    -   A folder is denoted by its name followed by parentheses \`()\`. Even if it contains items, the parentheses are essential after its name.
+    -   Files are just their names (e.g., \`index.html\`).
+    -   An empty folder is \`FolderName()\`.
+    -   There should be no spaces around commas or parentheses unless they are part of a file/folder name (which is discouraged for simplicity).
+    -   The very first name in the string is the root project folder name.
+
+2.  "fileContents": An array of objects. Each object in this array represents a file that needs content and MUST have:
+    -   "filePath": A string representing the full path of the file, starting with the root project folder name declared in the \`structureString\`, followed by any subfolders, and ending with the filename. Example: \`"MyProjectName/src/app.js"\`. Use forward slashes \`/\` as path separators. This path MUST EXACTLY match a file defined in the \`structureString\`.
+    -   "content": A string containing the complete text content for that file. Ensure to properly escape special characters within the content string if necessary for valid JSON (e.g., newlines as \\n, quotes as \\\").
+
+Instructions for you, the AI:
+- Generate ONLY the JSON object. Do not include any explanations, comments, or markdown formatting like \`\`\`json ... \`\`\` around the JSON output.
+- The output must be a single, valid JSON object.
+- Every file name that appears in the \`structureString\` (i.e., any name not followed by \`()\`) MUST have a corresponding entry in the \`fileContents\` array.
+- Folder names (those ending with \`()\`) in the \`structureString\` should NOT have entries in \`fileContents\`.
+- If I ask for a simple project like "a basic website", create an appropriate root project folder name (e.g., "BasicWebsiteProject") for the \`structureString\` and all \`filePath\` entries. Include at least an "index.html", a "css/style.css", and a "js/script.js" with minimal boilerplate content.
+
+Example of the expected JSON object format:
+\`\`\`json
+{
+  "structureString": "MyWebApp(index.html,README.md,assets(logo.svg),src(app.js,components(Button.js,Card.js),utils()),css(main.css,themes(dark.css)))",
+  "fileContents": [
+    {
+      "filePath": "MyWebApp/index.html",
+      "content": "<!DOCTYPE html>\\n<html>\\n<head><title>My Web App</title><link rel=\\"stylesheet\\" href=\\"css/main.css\\"></head>\\n<body><h1>Hello!</h1><script src=\\"src/app.js\\"></script></body>\\n</html>"
+    },
+    {
+      "filePath": "MyWebApp/README.md",
+      "content": "# MyWebApp\\nThis is a test project."
+    },
+    {
+      "filePath": "MyWebApp/assets/logo.svg",
+      "content": "<svg width=\\"100\\" height=\\"100\\"><circle cx=\\"50\\" cy=\\"50\\" r=\\"40\\" stroke=\\"green\\" stroke-width=\\"4\\" fill=\\"yellow\\" /></svg>"
+    },
+    {
+      "filePath": "MyWebApp/src/app.js",
+      "content": "console.log(\\"App started!\\");\\nimport Button from './components/Button.js';\\n// More app logic"
+    },
+    {
+      "filePath": "MyWebApp/src/components/Button.js",
+      "content": "export default function Button() {\\n  return '<button>Click Me</button>';\\n}"
+    },
+    {
+      "filePath": "MyWebApp/src/components/Card.js",
+      "content": "export default function Card(title) {\\n  return \`<div><h2>\${title}</h2></div>\`;\\n}"
+    },
+    {
+      "filePath": "MyWebApp/css/main.css",
+      "content": "body { margin: 0; padding: 10px; }\\nh1 { color: blue; }"
+    },
+    {
+      "filePath": "MyWebApp/css/themes/dark.css",
+      "content": "body { background: #333; color: white; }"
+    }
+  ]
+}
+\`\`\`
+
+Now, based on my request, generate the project scaffold JSON object:
+`;
+
+function handleCopyScaffoldPrompt() {
+    navigator.clipboard.writeText(scaffoldPromptTemplate)
+        .then(() => {
+            notificationSystem.showNotification("AI Scaffold Prompt copied to clipboard!", { duration: 3000 });
+        })
+        .catch(err => {
+            console.error('Failed to copy scaffold prompt: ', err);
+            errorHandler.showError({
+                name: "ClipboardError",
+                message: "Failed to copy scaffold prompt to clipboard.",
+                stack: err.stack
+            });
+        });
+}
+
+function handleCreateAiBrief() {
+    if (!appState.committedScanData || !appState.committedScanData.allFilesList || appState.committedScanData.allFilesList.length === 0) {
+        notificationSystem.showNotification("No committed files to create a brief from. Please commit selections first.", { duration: 3500 });
+        return;
+    }
+
+    const filePaths = appState.committedScanData.allFilesList.map(file => file.path);
+    const fileListString = "Project Context - File Paths:\n" + filePaths.join("\n");
+
+    navigator.clipboard.writeText(fileListString)
+        .then(() => {
+            notificationSystem.showNotification("Committed file paths copied for AI Brief!", { duration: 3000 });
+        })
+        .catch(err => {
+            console.error('Failed to copy file paths: ', err);
+            errorHandler.showError({
+                name: "ClipboardError",
+                message: "Failed to copy file paths to clipboard.",
+                stack: err.stack
+            });
+        });
+}
+
 
 function setupEventListeners() {
     const safeAddEventListener = (element, event, handler, elementName) => {
         if (element) {
             element.addEventListener(event, handler);
-        } else {
-            // console.warn(`[setupEventListeners] Element '${elementName}' not found for '${event}'. Listener not attached.`);
         }
     };
 
@@ -147,9 +247,9 @@ function setupEventListeners() {
     safeAddEventListener(elements.selectAllBtn, 'click', () => treeView.setAllSelections(true), 'selectAllBtn');
     safeAddEventListener(elements.deselectAllBtn, 'click', () => treeView.setAllSelections(false), 'deselectAllBtn');
     safeAddEventListener(elements.commitSelectionsBtn, 'click', commitSelections, 'commitSelectionsBtn');
-    // safeAddEventListener(elements.viewModeToggleBtn, 'click', () => uiManager.setViewModeUI(!appState.isCombineMode), 'viewModeToggleBtn'); // REMOVED
     safeAddEventListener(elements.downloadProjectBtn, 'click', zipManager.downloadProjectAsZip, 'downloadProjectBtn');
     safeAddEventListener(elements.clearProjectBtn, 'click', clearProjectData, 'clearProjectBtn');
+    safeAddEventListener(elements.createAiBriefBtn, 'click', handleCreateAiBrief, 'createAiBriefBtn');
 
     safeAddEventListener(elements.expandAllBtn, 'click', () => treeView.toggleAllFolders(false), 'expandAllBtn');
     safeAddEventListener(elements.collapseAllBtn, 'click', () => treeView.toggleAllFolders(true), 'collapseAllBtn');
@@ -163,6 +263,7 @@ function setupEventListeners() {
 
     safeAddEventListener(elements.copyReportButton, 'click', copyReport, 'copyReportButton');
     safeAddEventListener(elements.copySelectedBtn, 'click', combineMode.copySelectedFiles, 'copySelectedBtn');
+    safeAddEventListener(elements.copyScaffoldPromptBtn, 'click', handleCopyScaffoldPrompt, 'copyScaffoldPromptBtn');
 }
 
 function handleDragOver(e) { e.preventDefault(); if (elements.dropZone) elements.dropZone.classList.add('dragover'); }
@@ -200,7 +301,6 @@ async function processSelectedFolderViaInput(files, rootDirName) {
         appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, allInitiallySelectedPaths);
         appState.selectionCommitted = true;
 
-        // Show relevant UI sections for the new layout
         if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'flex';
         if (elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) {
             elements.visualOutputContainer.style.display = 'flex';
@@ -210,7 +310,7 @@ async function processSelectedFolderViaInput(files, rootDirName) {
         if (elements.generalActions) elements.generalActions.style.display = 'flex';
 
 
-        uiManager.activateTab(appState.activeTabId || 'textReportTab'); // Activate default or last active tab
+        uiManager.activateTab(appState.activeTabId || 'textReportTab');
         uiManager.refreshAllUI();
         enableUIControls();
 
@@ -379,7 +479,6 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
         elements.loader.classList.add('visible');
     }
 
-    // Hide main layout sections or their content
     if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'none';
     if (elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) {
         elements.visualOutputContainer.style.display = 'none';
@@ -387,8 +486,6 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     if (elements.treeViewControls) elements.treeViewControls.style.display = 'none';
     if (elements.generalActions) elements.generalActions.style.display = 'none';
 
-
-    // Hide all tab contents and deactivate tabs
     if (elements.tabContentArea) {
         elements.tabContentArea.querySelectorAll('.tab-content-item').forEach(tc => {
             tc.classList.remove('active');
@@ -398,7 +495,6 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     if (elements.mainViewTabs) {
       elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
     }
-    // Keep mainView and mainViewTabs visible, but content within is cleared/hidden
     if (elements.mainView) elements.mainView.style.display = 'flex';
 
 
@@ -425,7 +521,7 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
 
     appState.fullScanData = null; appState.committedScanData = null;
     appState.selectionCommitted = false; appState.currentEditingFile = null;
-    appState.activeTabId = 'textReportTab'; // Reset to default tab
+    appState.activeTabId = 'textReportTab';
 
     if (fileEditor.getAllEditedFiles && typeof fileEditor.getAllEditedFiles === 'function') {
         const editedFilesMap = fileEditor.getAllEditedFiles();
@@ -433,29 +529,30 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
             editedFilesMap.clear();
         }
     }
-
-    // uiManager.setViewModeUI(false); // Replaced by tab logic
-
     disableUIControls();
     if (elements.mainActionDiv && elements.mainActionDiv.style) elements.mainActionDiv.style.display = 'flex';
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
+    if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
 }
 
 export function enableUIControls() {
     const buttonsToEnable = [
         elements.selectAllBtn, elements.deselectAllBtn, elements.commitSelectionsBtn,
-        elements.expandAllBtn, elements.collapseAllBtn, /*elements.viewModeToggleBtn,*/ // Removed
+        elements.expandAllBtn, elements.collapseAllBtn,
         elements.downloadProjectBtn, elements.clearProjectBtn, elements.copyReportButton,
         elements.applyAiPatchBtn
     ];
     buttonsToEnable.forEach(btn => { if (btn) btn.disabled = false; });
 
     if (elements.createAiBriefBtn) {
-        elements.createAiBriefBtn.disabled = !appState.fullScanData;
+        elements.createAiBriefBtn.disabled = !(appState.committedScanData && appState.committedScanData.allFilesList && appState.committedScanData.allFilesList.length > 0);
     }
     if (elements.importAiScaffoldBtn) {
         elements.importAiScaffoldBtn.disabled = appState.processingInProgress;
+    }
+    if (elements.copyScaffoldPromptBtn) {
+        elements.copyScaffoldPromptBtn.disabled = appState.processingInProgress;
     }
     if (elements.copySelectedBtn) {
         const currentTabIsCombine = document.querySelector('.tab-button[data-tab="combineModeTab"]')?.classList.contains('active');
@@ -464,38 +561,34 @@ export function enableUIControls() {
      if (elements.clearProjectBtn) {
         elements.clearProjectBtn.disabled = !appState.fullScanData;
     }
-    // Enable tab buttons
     if(elements.mainViewTabs) elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.disabled = !appState.fullScanData);
-
 }
 
 function disableUIControls() {
      const buttonsToDisable = [
         elements.selectAllBtn, elements.deselectAllBtn, elements.commitSelectionsBtn,
-        elements.expandAllBtn, elements.collapseAllBtn, /*elements.viewModeToggleBtn,*/ // Removed
+        elements.expandAllBtn, elements.collapseAllBtn,
         elements.downloadProjectBtn, elements.clearProjectBtn, elements.copyReportButton,
         elements.copySelectedBtn,
         elements.createAiBriefBtn,
         elements.applyAiPatchBtn
     ];
     buttonsToDisable.forEach(btn => { if (btn) btn.disabled = true; });
-    // Disable tab buttons
     if(elements.mainViewTabs) elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.disabled = true);
 }
 
 function showFailedUI(message = "SCAN FAILED - SEE ERROR REPORT") {
     if(elements.textOutputEl && elements.textReportTab && elements.textReportTab.contains(elements.textOutputEl)) {
         elements.textOutputEl.textContent = message;
-        uiManager.activateTab('textReportTab'); // Show the tab with the error message
-    } else if (elements.textReportTab) { // If textOutputEl isn't there but tab is
+        uiManager.activateTab('textReportTab');
+    } else if (elements.textReportTab) {
         const errorNotice = document.createElement('div');
         errorNotice.className = 'empty-notice';
         errorNotice.textContent = message;
-        elements.textReportTab.innerHTML = ''; // Clear previous content
+        elements.textReportTab.innerHTML = '';
         elements.textReportTab.appendChild(errorNotice);
         uiManager.activateTab('textReportTab');
     }
-
 
     if(elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) elements.visualOutputContainer.style.display = 'none';
     if(elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'none';
@@ -507,8 +600,8 @@ function showFailedUI(message = "SCAN FAILED - SEE ERROR REPORT") {
     if(elements.mainActionDiv && elements.mainActionDiv.style) elements.mainActionDiv.style.display = 'flex';
     if(elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
+    if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
 }
-
 
 function commitSelections() {
     if (!appState.fullScanData) {
@@ -565,6 +658,10 @@ function commitSelections() {
 
     appState.selectionCommitted = true;
     uiManager.refreshAllUI();
+    if (elements.createAiBriefBtn) {
+        elements.createAiBriefBtn.disabled = !(appState.committedScanData && appState.committedScanData.allFilesList && appState.committedScanData.allFilesList.length > 0);
+    }
+
     if(currentSelectedPaths.size > 0) {
         notificationSystem.showNotification("Selections committed successfully");
     } else if (appState.fullScanData.allFilesList && appState.fullScanData.allFilesList.length === 0) {
@@ -577,6 +674,7 @@ function clearProjectData() {
     resetUIForProcessing("DROP A FOLDER OR SELECT ONE TO BEGIN.");
     if(elements.loader) elements.loader.classList.remove('visible');
     if(elements.mainActionDiv && elements.mainActionDiv.style) elements.mainActionDiv.style.display = 'flex';
+    if (elements.createAiBriefBtn) elements.createAiBriefBtn.disabled = true;
 }
 
 function copyReport() {
@@ -587,24 +685,27 @@ function copyReport() {
     } else { notificationSystem.showNotification('No report generated or report is empty.'); }
 }
 
-
 function initApp() {
-    populateElements();
+    populateElements(); // Must be first to ensure elements are available
 
+    // Initialize all modules
     notificationSystem.initNotificationSystem();
     errorHandler.initErrorHandlers();
     fileEditor.initFileEditor();
     aiPatcher.initAiPatcher();
     aiBriefingStudio.initAiBriefingStudio();
     scaffoldImporter.initScaffoldImporter();
-    uiManager.initTabs(); // Initialize tab functionality
+    uiManager.initTabs();
+    sidebarResizer.initResizer(elements.leftSidebar, elements.sidebarResizer, elements.mainView); // Call after elements are populated
 
-    document.body.className = '';
+
+    document.body.className = ''; // Remove any loading class from body
 
     // Initial UI state for the new layout
     if (elements.leftSidebar) elements.leftSidebar.style.display = 'flex';
     if (elements.mainActionDiv) elements.mainActionDiv.style.display = 'flex';
-    if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.style.display = 'block'; // Ensure it's visible
+    if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.style.display = 'block';
+    if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.style.display = 'block';
 
     if (elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) {
         elements.visualOutputContainer.style.display = 'none'; // Hide tree panel initially
@@ -638,12 +739,14 @@ function initApp() {
     if (elements.loader) elements.loader.classList.remove('visible');
 
 
-    disableUIControls();
-    if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
+    disableUIControls(); // Disable most controls initially
+    if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false; // Ensure scaffold btn is enabled
+    if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false; // Ensure scaffold prompt btn is enabled
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
+    if (elements.createAiBriefBtn) elements.createAiBriefBtn.disabled = true;
 
 
-    setupEventListeners();
+    setupEventListeners(); // Setup general event listeners
 
     if (elements.pageLoader) elements.pageLoader.classList.add('hidden');
     document.body.classList.add('loaded');
