@@ -84,36 +84,29 @@ function createNodeElement(nodeInfo) {
 
     if (nodeInfo.extension) {
         let extPart = nodeInfo.extension;
-        // Remove leading dot if present
         if (extPart.startsWith('.')) {
             extPart = extPart.substring(1);
         }
-
-        // Sanitize the extension part for use in a class name
         const sanitizedExtPart = extPart.toLowerCase()
-                                     .replace(/\s+/g, '-')      // Replace one or more spaces with a single hyphen
-                                     .replace(/[^\w-]/g, '');   // Remove any character that is not a word character (alphanumeric + underscore) or a hyphen
-
-        if (sanitizedExtPart) { // Only add if the sanitized part is not empty
+                                     .replace(/\s+/g, '-')
+                                     .replace(/[^\w-]/g, '');
+        if (sanitizedExtPart) {
             li.classList.add(`icon-${sanitizedExtPart}`);
         } else if (nodeInfo.type === 'file') {
-            // Fallback if sanitization results in an empty string but it's a file
             li.classList.add('icon-file-generic');
         }
     } else if (nodeInfo.type === 'file') {
-        // Handle files that have no 'extension' property at all (or it's empty)
         li.classList.add('icon-file-generic');
     }
 
-
-    if (nodeInfo.type === 'folder') { // Initially collapsed for new/empty, or respect saved state
-        li.classList.add('collapsed'); // Default new folders to collapsed for cleaner look
+    if (nodeInfo.type === 'folder') {
+        li.classList.add('collapsed');
         if ((!nodeInfo.children || nodeInfo.children.length === 0) && (nodeInfo.fileCount === 0 || nodeInfo.fileCount === undefined)) {
             li.classList.add('empty-folder-visual');
         }
     }
     li.dataset.path = nodeInfo.path;
-    li.dataset.selected = "true";
+    li.dataset.selected = "true"; // Default to selected, commit will filter
 
     const itemLine = document.createElement('div');
     itemLine.className = 'item-line';
@@ -124,7 +117,7 @@ function createNodeElement(nodeInfo) {
     const selector = document.createElement('input');
     selector.type = 'checkbox';
     selector.className = 'selector';
-    selector.checked = true;
+    selector.checked = true; // Default to checked
     selector.dataset.path = nodeInfo.path;
     itemPrefix.appendChild(selector);
 
@@ -142,7 +135,7 @@ function createNodeElement(nodeInfo) {
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'icon';
-    iconSpan.innerHTML = getIconSvg(nodeInfo); // getIconSvg will use the sanitized extension if needed
+    iconSpan.innerHTML = getIconSvg(nodeInfo);
     itemPrefix.appendChild(iconSpan);
     itemLine.appendChild(itemPrefix);
 
@@ -156,6 +149,7 @@ function createNodeElement(nodeInfo) {
         updateParentCheckboxStates(li.parentElement.closest('li.folder'));
     });
 
+    // Click on name to edit/preview
     if (nodeInfo.type === 'file') {
         nameSpan.addEventListener('click', (e) => {
             if (isLikelyTextFile(nodeInfo.path)) {
@@ -164,10 +158,10 @@ function createNodeElement(nodeInfo) {
                 fileSystem.previewFile(nodeInfo.entryHandle, nodeInfo.path);
             }
         });
-    } else { // Folder
-        nameSpan.addEventListener('click', (e) => { // Click on name toggles checkbox
+    } else { // Folder name click toggles checkbox
+        nameSpan.addEventListener('click', (e) => {
             selector.checked = !selector.checked;
-            selector.dispatchEvent(new Event('change'));
+            selector.dispatchEvent(new Event('change')); // Trigger change event for selection logic
         });
     }
 
@@ -180,25 +174,9 @@ function createNodeElement(nodeInfo) {
     }
     itemLine.appendChild(statsSpan);
 
-    if (nodeInfo.type === 'file') {
-        const actionSpan = document.createElement('span');
-        actionSpan.className = 'file-actions';
-        if (isLikelyTextFile(nodeInfo.path)) {
-            const editBtn = document.createElement('span');
-            editBtn.className = 'edit-btn';
-            editBtn.title = 'Edit file';
-            editBtn.textContent = '✏️';
-            editBtn.addEventListener('click', (e) => { e.stopPropagation(); fileEditor.openFileInEditor(nodeInfo); });
-            actionSpan.appendChild(editBtn);
-        }
-        const previewBtn = document.createElement('span');
-        previewBtn.className = 'preview-btn';
-        previewBtn.title = 'Preview file';
-        previewBtn.textContent = '👁️';
-        previewBtn.addEventListener('click', (e) => { e.stopPropagation(); fileSystem.previewFile(nodeInfo.entryHandle, nodeInfo.path); });
-        actionSpan.appendChild(previewBtn);
-        if (actionSpan.children.length > 0) itemLine.appendChild(actionSpan);
-    }
+    // The file-actions span and its children (edit-btn, preview-btn) are removed.
+    // Functionality is retained by clicking the file name.
+
     li.appendChild(itemLine);
     return li;
 }

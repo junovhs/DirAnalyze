@@ -708,3 +708,30 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
 body.loaded #appContainer {
     /* Styles to apply after loading, if any specific are needed */
 }
+
+/* ADD THIS BLOCK */
+.tree li.dimmed-uncommitted > .item-line {
+    opacity: 0.6;
+}
+.tree li.dimmed-uncommitted > .item-line .name,
+.tree li.dimmed-uncommitted > .item-line .stats,
+.tree li.dimmed-uncommitted > .item-line .icon svg,
+.tree li.dimmed-uncommitted > .item-line .folder-toggle {
+    color: var(--dim-color) !important; /* Use important to ensure override if needed */
+    fill: var(--dim-color) !important; /* For SVG icon fill */
+}
+.tree li.dimmed-uncommitted > .item-line .selector {
+    opacity: 0.65;
+}
+
+/* Ensure filtered-out does not interfere with dimming if it was used for commit filtering */
+/* If .filtered-out is used for other dynamic filtering, this specific rule might need adjustment */
+/* For now, assuming .dimmed-uncommitted takes precedence for visibility of uncommitted items */
+.tree li.filtered-out {
+    /* display: none; */ /* This line might have previously hidden items on commit */
+    /* If you still need a general .filtered-out class for other purposes that *does* hide items,
+       ensure the logic in updateVisualTreeFiltering doesn't apply .filtered-out for commit dimming.
+       The provided uiManager.js change will stop using .filtered-out for commit status.
+    */
+}
+/* END OF ADDED BLOCK */

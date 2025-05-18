@@ -184,25 +184,34 @@ function updateVisualTreeFiltering() {
 
     const committedPaths = new Set();
     if (appState.selectionCommitted && appState.committedScanData?.directoryData) {
-         function collectPaths(node) {
+        // Helper to collect all paths (files and folders) from the committed data structure
+        // This needs to be recursive to get all paths within committed folders.
+        function collectPathsRecursive(node, pathSet) {
             if (!node) return;
-            committedPaths.add(node.path);
-            if (node.children) node.children.forEach(collectPaths);
+            pathSet.add(node.path);
+            if (node.type === 'folder' && node.children) {
+                node.children.forEach(child => collectPathsRecursive(child, pathSet));
+            }
         }
-        collectPaths(appState.committedScanData.directoryData);
+        collectPathsRecursive(appState.committedScanData.directoryData, committedPaths);
     }
 
     elements.treeContainer.querySelectorAll('li').forEach(li => {
         const path = li.dataset.path;
-        const isInCommittedView = !appState.selectionCommitted || committedPaths.has(path) || committedPaths.size === 0; // If nothing committed, show all from full scan
-        const isSelectedByCheckbox = li.dataset.selected === "true";
 
-        // Main visibility based on committed view (if active)
+        // Reset states first
+        li.classList.remove('dimmed-uncommitted');
+        li.classList.remove('filtered-out'); // Ensure 'filtered-out' is also reset
+
         if (appState.selectionCommitted && committedPaths.size > 0) {
-            li.classList.toggle('filtered-out', !isInCommittedView);
-        } else {
-            li.classList.remove('filtered-out'); // Show all if no commit or commit is empty
+            // If a commit has occurred and there are items in the committed selection
+            if (!committedPaths.has(path)) {
+                li.classList.add('dimmed-uncommitted');
+            }
+            // Items in committedPaths will not have 'dimmed-uncommitted' (already removed above)
         }
+        // If no selection is committed OR if the committed selection is empty (e.g., user deselects all and commits),
+        // then no items are dimmed. All items remain fully visible.
     });
 }
 
