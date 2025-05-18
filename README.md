@@ -1,8 +1,8 @@
-# LoomDir
+# DirAnalyze
 
-**LoomDir: The AI Dialogue Orchestrator & Workflow Assistant**
+**DirAnalyze: The AI Dialogue Orchestrator & Workflow Assistant**
 
-LoomDir is a web-based utility designed to empower "LLM Dialogue Masters" – expert developers and architects who engage in sophisticated, iterative conversations with their preferred Large Language Models (LLMs) like Gemini, Claude, and ChatGPT.
+DirAnalyze is a web-based utility designed to empower "LLM Dialogue Masters" – expert developers and architects who engage in sophisticated, iterative conversations with their preferred Large Language Models (LLMs) like Gemini, Claude, and ChatGPT.
 
 It streamlines the cumbersome process of preparing code context for these dialogues and applying AI-generated code modifications (CAPCA patches) efficiently and accurately.
 
@@ -26,20 +26,20 @@ The manual, time-consuming, and error-prone process of:
 
 ## Vision
 
-LoomDir aims to be the premier LLM Dialogue Orchestrator. It focuses on managing the "before the prompt" and "between the prompts" parts of your AI-assisted development workflow, making you a more effective "director" of your AI coding partners.
+DirAnalyze aims to be the premier LLM Dialogue Orchestrator. It focuses on managing the "before the prompt" and "between the prompts" parts of your AI-assisted development workflow, making you a more effective "director" of your AI coding partners.
 
 *(Future roadmap highlights like "AI Briefing Package Generation" can be added here later)*
 
-## Getting Started / Running LoomDir
+## Getting Started / Running DirAnalyze
 
-LoomDir is a static web application. You can run it by:
+DirAnalyze is a static web application. You can run it by:
 1.  Cloning this repository.
 2.  Opening the `index.html` file in a modern web browser.
-    *   OR, access the live GitHub Pages deployment at: [https://junovhs.github.io/LoomDir/](https://junovhs.github.io/LoomDir/) *(Adjust this link if your username/repo name is different or once it's live)*
+    *   OR, access the live GitHub Pages deployment at: [https://junovhs.github.io/DirAnalyze/](https://junovhs.github.io/DirAnalyze/) *(Adjust this link if your username/repo name is different or once it's live)*
 
 ## Dogfooding Development
 
-LoomDir v1.0 is being used to develop its own future enhancements. The workflow involves loading LoomDir's source code into itself, using its features to prepare context for an LLM, and then applying LLM-generated CAPCA patches to its own codebase.
+DirAnalyze v1.0 is being used to develop its own future enhancements. The workflow involves loading DirAnalyze's source code into itself, using its features to prepare context for an LLM, and then applying LLM-generated CAPCA patches to its own codebase.
 
 *(More details on the dogfooding process can be added from the handoff document)*
 
