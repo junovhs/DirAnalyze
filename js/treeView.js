@@ -14,18 +14,39 @@ const ICONS = {
     json: `<svg viewBox="0 0 24 24"><path d="M6 15h3v3H6v-3m9 0h3v3h-3v-3M6 6h3v3H6V6m9 3h3v3h-3V9m-5 2c0 .95.31 1.77.94 2.45.63.7 1.43 1.05 2.41 1.05.98 0 1.78-.35 2.41-1.05.63-.68.94-1.5.94-2.45V9h-1.9v2.1c0 .59-.2.99-.59 1.24-.39.24-.89.36-1.51.36-.62 0-1.12-.12-1.51-.36-.39-.25-.59-.65-.59-1.24V9H10v2Z"/></svg>`,
     md: `<svg viewBox="0 0 24 24"><path d="M20 6H4c-1.11 0-2 .89-2 2v8c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM4 15.5V8.5c.01-.28.21-.5.49-.5h15.02c.28 0 .49.22.49.5v7c0 .28-.22.5-.49.5H4.49c-.28 0-.49-.22-.49-.5zm2-2.5h2V11h2v2h2v-1.5H8.5v-1H10V11H8.5v1H7V9.5h1.5v1H10V12h2v-1.5h1.5V12H12v1.5h3.5c.28 0 .5-.22.5-.5v-3c0-.28-.22-.5-.5-.5H14v1.5h-2V9.5H9.5V11H8v2H6v-1.5z"/></svg>`,
     py: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15.5 19.88a1.5 1.5 0 1 0 0-3a1.5 1.5 0 0 0 0 3m-7-14.76a1.5 1.5 0 1 0 0-3a1.5 1.5 0 0 0 0 3m.03-2.16h2.83v2.79h-2.83zM8.5 19.88a1.5 1.5 0 1 0 0-3a1.5 1.5 0 0 0 0 3m-.03.84H5.65v-2.79h2.83zM12.38 12h-2.76V5.62H6.84v2.76H4.06V3h11.88v2.62h-2.71v9.16a2.75 2.75 0 0 0 2.75 2.75h2.83v2.79h-2.83a5.52 5.52 0 0 1-5.52-5.52zm2.79.03V9.24h2.76v2.79zm.03-5.16h2.83v2.79h-2.83z"/></svg>`,
+    // Add a generic icon for files without specific icons or problematic extensions
+    fileGeneric: `<svg viewBox="0 0 24 24"><path d="M6 2c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6H6zm8 7V3.5L18.5 9H14z"/></svg>`,
 };
 
 function getIconSvg(nodeInfo) {
     if (nodeInfo.type === 'folder') return ICONS.folder;
-    switch (nodeInfo.extension) {
-        case '.js': case '.mjs': return ICONS.js;
-        case '.html': case '.htm': return ICONS.html;
-        case '.css': return ICONS.css;
-        case '.json': return ICONS.json;
-        case '.md': return ICONS.md;
-        case '.py': return ICONS.py;
-        default: return ICONS.file;
+
+    // Sanitize extension for icon lookup, similar to class name sanitization
+    let extKey = '';
+    if (nodeInfo.extension) {
+        extKey = nodeInfo.extension.toLowerCase();
+        if (extKey.startsWith('.')) {
+            extKey = extKey.substring(1);
+        }
+        // Basic sanitization for lookup if needed, though direct match is better
+        extKey = extKey.replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+    }
+
+    switch (extKey) { // Use the potentially sanitized extKey if direct match nodeInfo.extension fails
+        case 'js': case 'mjs': return ICONS.js;
+        case 'html': case 'htm': return ICONS.html;
+        case 'css': return ICONS.css;
+        case 'json': return ICONS.json;
+        case 'md': return ICONS.md;
+        case 'py': return ICONS.py;
+        // Add more specific cases if necessary
+        default:
+            // Try with raw extension first if it exists
+            if (nodeInfo.extension) {
+                const rawExt = nodeInfo.extension.toLowerCase();
+                if (ICONS[rawExt.substring(1)]) return ICONS[rawExt.substring(1)];
+            }
+            return ICONS.fileGeneric; // Fallback to a generic file icon
     }
 }
 
@@ -59,10 +80,32 @@ export function renderTree(node, parentULElement) {
 
 function createNodeElement(nodeInfo) {
     const li = document.createElement('li');
-    li.classList.add(nodeInfo.type);
+    li.classList.add(nodeInfo.type); // e.g., 'file' or 'folder'
+
     if (nodeInfo.extension) {
-        li.classList.add(`icon-${nodeInfo.extension.substring(1)}`);
+        let extPart = nodeInfo.extension;
+        // Remove leading dot if present
+        if (extPart.startsWith('.')) {
+            extPart = extPart.substring(1);
+        }
+
+        // Sanitize the extension part for use in a class name
+        const sanitizedExtPart = extPart.toLowerCase()
+                                     .replace(/\s+/g, '-')      // Replace one or more spaces with a single hyphen
+                                     .replace(/[^\w-]/g, '');   // Remove any character that is not a word character (alphanumeric + underscore) or a hyphen
+
+        if (sanitizedExtPart) { // Only add if the sanitized part is not empty
+            li.classList.add(`icon-${sanitizedExtPart}`);
+        } else if (nodeInfo.type === 'file') {
+            // Fallback if sanitization results in an empty string but it's a file
+            li.classList.add('icon-file-generic');
+        }
+    } else if (nodeInfo.type === 'file') {
+        // Handle files that have no 'extension' property at all (or it's empty)
+        li.classList.add('icon-file-generic');
     }
+
+
     if (nodeInfo.type === 'folder') { // Initially collapsed for new/empty, or respect saved state
         li.classList.add('collapsed'); // Default new folders to collapsed for cleaner look
         if ((!nodeInfo.children || nodeInfo.children.length === 0) && (nodeInfo.fileCount === 0 || nodeInfo.fileCount === undefined)) {
@@ -99,7 +142,7 @@ function createNodeElement(nodeInfo) {
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'icon';
-    iconSpan.innerHTML = getIconSvg(nodeInfo);
+    iconSpan.innerHTML = getIconSvg(nodeInfo); // getIconSvg will use the sanitized extension if needed
     itemPrefix.appendChild(iconSpan);
     itemLine.appendChild(itemPrefix);
 
@@ -126,7 +169,6 @@ function createNodeElement(nodeInfo) {
             selector.checked = !selector.checked;
             selector.dispatchEvent(new Event('change'));
         });
-        // Icon click is now handled by the toggleSpan for collapsing
     }
 
     const statsSpan = document.createElement('span');
@@ -161,21 +203,6 @@ function createNodeElement(nodeInfo) {
     return li;
 }
 
-// addFileToTree, updateSelectionState, updateParentCheckboxStates, setAllSelections remain the same
-// toggleAllFolders should update the textContent of .folder-toggle as well
-export function toggleAllFolders(collapse) {
-    elements.treeContainer.querySelectorAll('.tree .folder').forEach(folderLi => {
-        folderLi.classList.toggle('collapsed', collapse);
-        const toggle = folderLi.querySelector('.folder-toggle');
-        if (toggle) {
-            toggle.textContent = collapse ? '▸' : '▾';
-        }
-    });
-}
-
-
-// --- (Rest of the functions: addFileToTree, updateSelectionState, updateParentCheckboxStates, setAllSelections) ---
-// Minor change in addFileToTree to update toggle text if parent was collapsed
 export function addFileToTree(fileInfo) {
     if (fileInfo.type !== 'file') {
         console.warn("addFileToTree is intended for files.");
@@ -230,7 +257,6 @@ export function addFileToTree(fileInfo) {
         parentUlElement = document.createElement('ul');
         parentLiElement.appendChild(parentUlElement);
         parentLiElement.classList.remove('empty-folder-visual');
-        // If parent was collapsed and we added a UL, expand it and update toggle
         if (parentLiElement.classList.contains('collapsed')) {
             parentLiElement.classList.remove('collapsed');
             const toggle = parentLiElement.querySelector('.folder-toggle');
@@ -266,12 +292,12 @@ export function addFileToTree(fileInfo) {
         const ancestorPathParts = currentAncestorDataNode.path.split('/');
         ancestorPathParts.pop();
         const grandParentPath = ancestorPathParts.join('/');
-        if (!grandParentPath && appState.fullScanData.directoryData.path !== currentAncestorDataNode.path) { // Handle if parent is root
-             if (currentAncestorDataNode === appState.fullScanData.directoryData) break; // Already at root
+        if (!grandParentPath && appState.fullScanData.directoryData.path !== currentAncestorDataNode.path) {
+             if (currentAncestorDataNode === appState.fullScanData.directoryData) break;
              const rootDataNode = appState.fullScanData.directoryData;
              const rootLiElement = elements.treeContainer.querySelector(`li[data-path="${rootDataNode.path}"]`);
              if(rootDataNode && rootLiElement) {
-                if (!rootDataNode.children.find(c => c.path === fileInfo.path)) {
+                if (!rootDataNode.children.find(c => c.path === fileInfo.path)) { // Check if already counted
                     rootDataNode.fileCount = (rootDataNode.fileCount || 0) + 1;
                     rootDataNode.totalSize = (rootDataNode.totalSize || 0) + (fileInfo.size || 0);
                 }
@@ -284,12 +310,11 @@ export function addFileToTree(fileInfo) {
         }
         if (!grandParentPath) break;
 
-
         const grandParentDataNode = findNodeInData(appState.fullScanData.directoryData, grandParentPath);
         const grandParentLiElement = elements.treeContainer.querySelector(`li[data-path="${grandParentPath}"]`);
 
         if (grandParentDataNode && grandParentLiElement) {
-            if (!grandParentDataNode.children.find(c => c.path === fileInfo.path)) {
+             if (!grandParentDataNode.children.find(c => c.path === fileInfo.path)) { // Check if already counted
                 grandParentDataNode.fileCount = (grandParentDataNode.fileCount || 0) + 1;
                 grandParentDataNode.totalSize = (grandParentDataNode.totalSize || 0) + (fileInfo.size || 0);
             }
@@ -326,28 +351,28 @@ export function updateParentCheckboxStates(parentListItem) {
         const numIndeterminate = childSelectors.filter(s => s.indeterminate).length;
         const numSelectedViaDataset = Array.from(parentListItem.querySelectorAll(':scope > ul > li[data-selected="true"]')).length;
 
+
         if (numSelectedViaDataset === 0) {
             parentSelector.checked = false;
             parentSelector.indeterminate = false;
             parentListItem.dataset.selected = "false";
         } else if (numSelectedViaDataset === childSelectors.length) {
-            if (numChecked === childSelectors.length && numIndeterminate === 0) {
-                parentSelector.checked = true;
-                parentSelector.indeterminate = false;
-            } else {
-                parentSelector.checked = false;
-                parentSelector.indeterminate = true;
-            }
+             // All children are selected. Parent should be checked true, not indeterminate.
+            parentSelector.checked = true;
+            parentSelector.indeterminate = false;
             parentListItem.dataset.selected = "true";
         } else {
-            parentSelector.checked = false;
+            // Some children are selected, but not all. Parent should be indeterminate.
+            parentSelector.checked = false; // Conventionally, indeterminate checkboxes are not 'checked'
             parentSelector.indeterminate = true;
-            parentListItem.dataset.selected = "true";
+            parentListItem.dataset.selected = "true"; // Parent is still considered "selected" if any child is selected
         }
     } else if (parentSelector) {
+        // No children, so its state is its own.
         parentSelector.indeterminate = false;
         parentListItem.dataset.selected = parentSelector.checked.toString();
     }
+    // Recursively update the state of the grandparent
     updateParentCheckboxStates(parentListItem.parentElement.closest('li.folder'));
 }
 
@@ -359,6 +384,16 @@ export function setAllSelections(isSelected) {
         if (checkbox) {
             checkbox.checked = isSelected;
             checkbox.indeterminate = false;
+        }
+    });
+}
+
+export function toggleAllFolders(collapse) {
+    elements.treeContainer.querySelectorAll('.tree .folder').forEach(folderLi => {
+        folderLi.classList.toggle('collapsed', collapse);
+        const toggle = folderLi.querySelector(':scope > .item-line > .item-prefix > .folder-toggle');
+        if (toggle) {
+            toggle.textContent = collapse ? '▸' : '▾';
         }
     });
 }
