@@ -4,11 +4,11 @@ import * as fileSystem from 'fileSystem';
 import * as notificationSystem from 'notificationSystem';
 import * as errorHandler from 'errorHandler';
 import { getFileExtension } from './utils.js';
+import * as uiManager from 'uiManager'; // Import uiManager
 
 const editedFiles = new Map();
-let cmOnChangeHandler = null; // To store and manage the change handler
+let cmOnChangeHandler = null;
 
-// Helper to get CodeMirror mode from file extension
 function getCodeMirrorMode(filePath) {
     const extension = getFileExtension(filePath);
     switch (extension) {
@@ -37,9 +37,7 @@ export function initFileEditor() {
             styleActiveLine: true,
         });
 
-        // Define the change handler
         cmOnChangeHandler = (cmInstance, changeObj) => {
-            // Ignore programmatic changes during file loading
             if (changeObj.origin === 'setValue' && appState.isLoadingFileContent) {
                 return;
             }
@@ -55,7 +53,6 @@ export function initFileEditor() {
         };
 
         appState.editorInstance.on('change', cmOnChangeHandler);
-
         appState.editorInstance.setOption("extraKeys", {
             "Ctrl-S": function(cm) { saveFileChanges(); },
             "Cmd-S": function(cm) { saveFileChanges(); }
@@ -72,22 +69,29 @@ export function initFileEditor() {
 
 export async function openFileInEditor(file) {
     console.log(`[FileEditor] Attempting to open: ${file.path}, Type: ${file.entryHandle ? 'Existing File' : 'New/Virtual File'}`);
-    appState.isLoadingFileContent = true; // Flag to ignore CM change event
+    appState.isLoadingFileContent = true;
 
     try {
+        // Store previous tab and hide tab view
+        if (!appState.editorActiveAsMainView) { // Only store if not already in editor view
+            appState.previousActiveTabId = appState.activeTabId;
+        }
+        appState.editorActiveAsMainView = true;
+        if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'none';
+        if (elements.tabContentArea) elements.tabContentArea.style.display = 'none';
+        if (elements.fileEditor) elements.fileEditor.style.display = 'flex';
+
+
         appState.currentEditingFile = file;
         setEditorStatus('loading');
         elements.editorFileTitle.textContent = `EDITING: ${file.name}`;
         elements.editorInfo.textContent = `Path: ${file.path}`;
-        elements.fileEditor.style.display = 'flex';
+        // elements.fileEditor.style.display = 'flex'; // Already handled above
 
-        // Set "Loading file..." without triggering our custom change handler logic
         if (appState.editorInstance) {
-            console.log("[FileEditor] Programmatically setting editor to 'Loading file...'");
-            appState.editorInstance.setValue('Loading file...'); // This will still trigger CM's internal 'setValue' origin
+            appState.editorInstance.setValue('Loading file...');
         } else {
-            console.warn("[FileEditor] appState.editorInstance is null when trying to set 'Loading file...'");
-            elements.editorContent.textContent = 'Loading file...'; // Fallback if CM not ready
+            elements.editorContent.textContent = 'Loading file...';
         }
 
         let contentToLoad = "// Content not loaded //";
@@ -95,62 +99,48 @@ export async function openFileInEditor(file) {
 
         if (editedFiles.has(file.path)) {
             const fileState = editedFiles.get(file.path);
-            // IMPORTANT: Use the cached content, not the "Loading file..." placeholder
             contentToLoad = fileState.content;
-            console.log(`[FileEditor] Found in editedFiles. Cached content length: ${contentToLoad?.length}. Patched: ${fileState.isPatched}, SavedInSession: ${fileState.savedInSession}`);
-
             if (fileState.savedInSession) {
                 statusToSet = fileState.isPatched ? 'patched_saved' : 'saved';
             } else {
-                if (file.entryHandle) { // If it's an existing file, compare current cached content to original
-                    const originalContent = await fileSystem.readFileContent(file.entryHandle, file.path, true); // forceOriginal=true
+                if (file.entryHandle) {
+                    const originalContent = await fileSystem.readFileContent(file.entryHandle, file.path, true);
                     if (contentToLoad === originalContent && !fileState.isPatched) {
                         statusToSet = 'unchanged';
-                    } else if (fileState.isPatched) {
-                        statusToSet = 'patched_unsaved';
-                    } else { // Manually changed from original, not saved in session
-                        statusToSet = 'unsaved';
+                    } else {
+                        statusToSet = fileState.isPatched ? 'patched_unsaved' : 'unsaved';
                     }
-                } else { // New file, not saved in session
+                } else {
                     statusToSet = fileState.isPatched ? 'patched_unsaved' : 'unsaved';
                 }
             }
-        } else if (file.entryHandle) { // File not in cache, read from disk
-            console.log(`[FileEditor] Not in editedFiles, reading from entryHandle for: ${file.path}`);
-            contentToLoad = await fileSystem.readFileContent(file.entryHandle, file.path, true); // forceOriginal=true
-            console.log(`[FileEditor] Read from entryHandle. Content length: ${contentToLoad?.length}`);
-            // Add to cache *after* reading
+        } else if (file.entryHandle) {
+            contentToLoad = await fileSystem.readFileContent(file.entryHandle, file.path, true);
             editedFiles.set(file.path, {
                 content: contentToLoad,
                 isPatched: false,
-                savedInSession: false // It's fresh from disk, not "saved" by user action yet
+                savedInSession: false
             });
             statusToSet = 'unchanged';
-        } else { // New file not in editedFiles and no handle (should have been added by create_file_with_content)
-            console.error(`[FileEditor] CRITICAL: File ${file.path} has no entryHandle and is NOT in editedFiles. This indicates a previous step might have failed to register it.`);
-            contentToLoad = `// Error: Could not load content for new file ${file.path}. File not found in editor's cache.`;
+        } else {
+            contentToLoad = `// Error: Could not load content for new file ${file.path}.`;
             statusToSet = 'error';
             errorHandler.showError({
                 name: "FileOpenConsistencyError",
-                message: `Could not load content for ${file.path}. New file missing from editor state cache.`
+                message: `Could not load content for ${file.path}. New file missing.`
             });
         }
 
-        console.log(`[FileEditor] About to set final editor content for ${file.path}. Status to set: ${statusToSet}. Content length: ${contentToLoad ? contentToLoad.length : 'undefined'}.`);
         if (appState.editorInstance) {
-            appState.editorInstance.setValue(contentToLoad || "// Error: Content was unexpectedly empty after loading logic.");
+            appState.editorInstance.setValue(contentToLoad || "// Error: Content empty.");
             const mode = getCodeMirrorMode(file.path);
-            console.log(`[FileEditor] Setting CodeMirror mode to:`, mode);
             appState.editorInstance.setOption("mode", mode);
-
             setTimeout(() => {
                 if (elements.fileEditor.style.display === 'flex' && appState.editorInstance) {
                     appState.editorInstance.refresh();
                     appState.editorInstance.focus();
                 }
-            }, 100);
-        } else {
-             console.error("[FileEditor] appState.editorInstance is null when trying to set final content.");
+            }, 50); // Adjusted timeout for safety
         }
         setEditorStatus(statusToSet);
 
@@ -158,20 +148,15 @@ export async function openFileInEditor(file) {
         console.error(`[FileEditor] Error in openFileInEditor for '${file.path}':`, err);
         setEditorStatus('error', err.message);
         if (appState.editorInstance) appState.editorInstance.setValue(`Error loading file: ${err.message}`);
-        else if (elements.editorContent.firstChild && elements.editorContent.firstChild.CodeMirror) {
-            // If CM was attached to the div directly
-            elements.editorContent.firstChild.CodeMirror.setValue(`Error loading file: ${err.message}`);
-        } else {
-            elements.editorContent.textContent = `Error loading file: ${err.message}`;
-        }
         errorHandler.showError({
             name: err.name || "FileOpenError",
             message: `Failed to open file: ${file.name || file.path}. ${err.message}`,
             stack: err.stack, cause: err, path: file.path
         });
+        // If opening fails critically, restore tab view
+        closeEditor();
     } finally {
-        appState.isLoadingFileContent = false; // Re-enable CM change handler logic
-        console.log("[FileEditor] isLoadingFileContent set to false.");
+        appState.isLoadingFileContent = false;
     }
 }
 
@@ -194,66 +179,40 @@ function saveFileChanges() {
 }
 
 function closeEditor() {
-    if (appState.currentEditingFile) {
-        const fileState = editedFiles.get(appState.currentEditingFile.path);
-        // Note: No confirmation for unsaved changes, as per handoff doc (changes are kept in memory)
-    }
-    elements.fileEditor.style.display = 'none';
-    if (appState.editorInstance) appState.editorInstance.setValue('');
+    if (elements.fileEditor) elements.fileEditor.style.display = 'none';
+    if (appState.editorInstance) appState.editorInstance.setValue(''); // Clear editor content
+
     appState.currentEditingFile = null;
+    appState.editorActiveAsMainView = false;
+
+    // Restore tab view
+    if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'flex';
+    if (elements.tabContentArea) elements.tabContentArea.style.display = 'flex'; // Re-show the container
+
+    // Activate the previously active tab, or default to textReportTab
+    uiManager.activateTab(appState.previousActiveTabId || 'textReportTab');
+    appState.previousActiveTabId = null; // Clear stored previous tab
 }
 
 export function setEditorStatus(statusKey, message = '') {
     const statusEl = elements.editorStatus;
-    statusEl.className = 'editor-status';
+    statusEl.className = 'editor-status'; // Reset classes
 
     let textContent = '';
     let disableSave = true;
 
     switch (statusKey) {
-        case 'loading':
-            textContent = 'LOADING...';
-            statusEl.classList.add(`status-loading`);
-            break;
-        case 'unchanged':
-            textContent = 'UNCHANGED';
-            statusEl.classList.add(`status-unchanged`);
-            disableSave = true;
-            break;
+        case 'loading': textContent = 'LOADING...'; statusEl.classList.add(`status-loading`); break;
+        case 'unchanged': textContent = 'UNCHANGED'; statusEl.classList.add(`status-unchanged`); disableSave = true; break;
         case 'unsaved':
             const currentFile = appState.currentEditingFile ? editedFiles.get(appState.currentEditingFile.path) : null;
-            if (currentFile && currentFile.isPatched && !currentFile.savedInSession) {
-                textContent = 'PATCHED (Unsaved)';
-            } else if (currentFile && !currentFile.isPatched && !currentFile.savedInSession) {
-                textContent = 'UNSAVED (Manual)';
-            } else { // Generic unsaved, or if currentFile state is unusual
-                textContent = 'UNSAVED';
-            }
-            statusEl.classList.add(`status-unsaved`);
-            disableSave = false;
-            break;
-        case 'saved':
-            textContent = 'SAVED (Manual)';
-            statusEl.classList.add(`status-saved`);
-            // After saving, disable save button until further changes
-            disableSave = true;
-            break;
-        case 'patched_unsaved':
-            textContent = 'PATCHED (Unsaved)';
-            statusEl.classList.add(`status-unsaved`);
-            disableSave = false;
-            break;
-        case 'patched_saved':
-            textContent = 'PATCHED (Saved)';
-            statusEl.classList.add(`status-saved`);
-            disableSave = true;
-            break;
-        case 'error':
-            textContent = `ERROR: ${message}`;
-            statusEl.classList.add(`status-error`);
-            break;
-        default:
-            textContent = statusKey;
+            textContent = (currentFile && currentFile.isPatched && !currentFile.savedInSession) ? 'PATCHED (Unsaved)' : 'UNSAVED (Manual)';
+            statusEl.classList.add(`status-unsaved`); disableSave = false; break;
+        case 'saved': textContent = 'SAVED (Manual)'; statusEl.classList.add(`status-saved`); disableSave = true; break;
+        case 'patched_unsaved': textContent = 'PATCHED (Unsaved)'; statusEl.classList.add(`status-unsaved`); disableSave = false; break;
+        case 'patched_saved': textContent = 'PATCHED (Saved)'; statusEl.classList.add(`status-saved`); disableSave = true; break;
+        case 'error': textContent = `ERROR: ${message}`; statusEl.classList.add(`status-error`); break;
+        default: textContent = statusKey;
     }
     statusEl.textContent = textContent;
     elements.saveEditorBtn.disabled = disableSave;
@@ -276,15 +235,16 @@ export function setEditedContent(filePath, content, wasPatched = false) {
     editedFiles.set(filePath, {
         content: content,
         isPatched: existingState.isPatched || wasPatched,
-        savedInSession: false
+        savedInSession: false // New content or patch means it's unsaved relative to this action
     });
 
+    // If this file is currently being edited, update the live editor instance
     if (appState.currentEditingFile && appState.currentEditingFile.path === filePath && appState.editorInstance) {
         appState.isLoadingFileContent = true; // Prevent CM change handler during this setValue
         appState.editorInstance.setValue(content);
         appState.editorInstance.setOption("mode", getCodeMirrorMode(filePath));
         appState.isLoadingFileContent = false;
-        setEditorStatus('patched_unsaved');
+        setEditorStatus(wasPatched ? 'patched_unsaved' : 'unsaved'); // Reflect new state
     }
 }
 

@@ -13,7 +13,7 @@ import * as zipManager from './zipManager.js';
 import * as utils from './utils.js';
 import * as aiBriefingStudio from './aiBriefingStudio.js';
 import * as scaffoldImporter from './scaffoldImporter.js';
-import * as sidebarResizer from './sidebarResizer.js'; // Correctly imported
+import * as sidebarResizer from './sidebarResizer.js';
 
 export const appState = {
     activeTabId: 'textReportTab',
@@ -26,6 +26,8 @@ export const appState = {
     editorInstance: null,
     previewEditorInstance: null,
     isLoadingFileContent: false,
+    editorActiveAsMainView: false, // Added: Tracks if editor is the main view
+    previousActiveTabId: null,   // Added: Stores tab ID before editor opens
 };
 
 export let elements = {};
@@ -69,7 +71,7 @@ function populateElements() {
         visualOutputContainer: 'visualOutputContainer',
         notification: 'notification',
         errorReport: 'errorReport',
-        fileEditor: 'fileEditor',
+        fileEditor: 'fileEditor', // Stays here, its display style changes
         editorFileTitle: 'editorFileTitle',
         editorContent: 'editorContent',
         saveEditorBtn: 'saveEditorBtn',
@@ -309,8 +311,7 @@ async function processSelectedFolderViaInput(files, rootDirName) {
         if (elements.treeViewControls) elements.treeViewControls.style.display = 'flex';
         if (elements.generalActions) elements.generalActions.style.display = 'flex';
 
-
-        uiManager.activateTab(appState.activeTabId || 'textReportTab');
+        uiManager.activateTab(appState.activeTabId || 'textReportTab'); // Ensures a tab is active
         uiManager.refreshAllUI();
         enableUIControls();
 
@@ -367,7 +368,7 @@ function createVirtualDirectoryFromFiles(fileList, rootName) {
         const fileInfo = {
             name: fileName, type: 'file', size: file.size, path: filePath,
             extension: ext, depth: pathParts.length + 1,
-            entryHandle: file
+            entryHandle: file // Storing the File object directly as the handle for input type=file
         };
         currentParent.children.push(fileInfo);
         allFilesList.push({ ...fileInfo });
@@ -410,7 +411,7 @@ function createVirtualDirectoryFromFiles(fileList, rootName) {
 function countEmptyDirs(node, rootName) {
     let count = 0;
     if (node.type === 'folder') {
-        if (node.children.length === 0 && node.name !== rootName) {
+        if (node.children.length === 0 && node.name !== rootName) { // Don't count root itself if it's empty
             count = 1;
         }
         else { for (const child of node.children) { count += countEmptyDirs(child, rootName); } }
@@ -449,7 +450,6 @@ async function handleFileDrop(event) {
                 if (elements.treeViewControls) elements.treeViewControls.style.display = 'flex';
                 if (elements.generalActions) elements.generalActions.style.display = 'flex';
 
-
                 uiManager.activateTab(appState.activeTabId || 'textReportTab');
                 uiManager.refreshAllUI();
                 enableUIControls();
@@ -479,12 +479,26 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
         elements.loader.classList.add('visible');
     }
 
+    // If editor was main view, close it and restore tabs
+    if (appState.editorActiveAsMainView && typeof fileEditor.closeEditor === 'function') {
+        fileEditor.closeEditor(); // This should handle restoring tab view visibility
+    } else {
+        // Explicitly ensure tab view is visible if editor wasn't active or closeEditor didn't handle it
+        if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'flex';
+        if (elements.tabContentArea) elements.tabContentArea.style.display = 'flex';
+        if (elements.fileEditor) elements.fileEditor.style.display = 'none'; // Ensure editor panel is hidden
+    }
+    appState.editorActiveAsMainView = false;
+    appState.previousActiveTabId = null;
+
+
     if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'none';
     if (elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) {
         elements.visualOutputContainer.style.display = 'none';
     }
     if (elements.treeViewControls) elements.treeViewControls.style.display = 'none';
     if (elements.generalActions) elements.generalActions.style.display = 'none';
+
 
     if (elements.tabContentArea) {
         elements.tabContentArea.querySelectorAll('.tab-content-item').forEach(tc => {
@@ -499,7 +513,9 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
 
 
     const modalsToHide = [
-        elements.fileEditor, elements.aiBriefingStudioModal, elements.scaffoldImportModal, elements.aiPatchDiffModal, elements.filePreview, elements.errorReport
+        /* elements.fileEditor, // No longer treated as a popup modal here */
+        elements.aiBriefingStudioModal, elements.scaffoldImportModal,
+        elements.aiPatchDiffModal, elements.filePreview, elements.errorReport
     ];
     modalsToHide.forEach(panel => { if (panel && panel.style) panel.style.display = 'none'; });
 
@@ -521,7 +537,7 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
 
     appState.fullScanData = null; appState.committedScanData = null;
     appState.selectionCommitted = false; appState.currentEditingFile = null;
-    appState.activeTabId = 'textReportTab';
+    appState.activeTabId = 'textReportTab'; // Default to text report tab on reset
 
     if (fileEditor.getAllEditedFiles && typeof fileEditor.getAllEditedFiles === 'function') {
         const editedFilesMap = fileEditor.getAllEditedFiles();
@@ -534,6 +550,10 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
+
+    if (typeof uiManager.activateTab === 'function') {
+        uiManager.activateTab('textReportTab'); // Ensure a tab is active
+    }
 }
 
 export function enableUIControls() {
@@ -556,7 +576,8 @@ export function enableUIControls() {
     }
     if (elements.copySelectedBtn) {
         const currentTabIsCombine = document.querySelector('.tab-button[data-tab="combineModeTab"]')?.classList.contains('active');
-        elements.copySelectedBtn.disabled = !(currentTabIsCombine && appState.selectionCommitted && appState.committedScanData?.allFilesList.some(f => utils.isLikelyTextFile(f.path)));
+        const textFilesInCommitted = appState.committedScanData?.allFilesList.some(f => utils.isLikelyTextFile(f.path));
+        elements.copySelectedBtn.disabled = !(currentTabIsCombine && appState.selectionCommitted && textFilesInCommitted);
     }
      if (elements.clearProjectBtn) {
         elements.clearProjectBtn.disabled = !appState.fullScanData;
@@ -580,14 +601,14 @@ function disableUIControls() {
 function showFailedUI(message = "SCAN FAILED - SEE ERROR REPORT") {
     if(elements.textOutputEl && elements.textReportTab && elements.textReportTab.contains(elements.textOutputEl)) {
         elements.textOutputEl.textContent = message;
-        uiManager.activateTab('textReportTab');
+        if (typeof uiManager.activateTab === 'function') uiManager.activateTab('textReportTab');
     } else if (elements.textReportTab) {
         const errorNotice = document.createElement('div');
         errorNotice.className = 'empty-notice';
         errorNotice.textContent = message;
         elements.textReportTab.innerHTML = '';
         elements.textReportTab.appendChild(errorNotice);
-        uiManager.activateTab('textReportTab');
+        if (typeof uiManager.activateTab === 'function') uiManager.activateTab('textReportTab');
     }
 
     if(elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) elements.visualOutputContainer.style.display = 'none';
@@ -601,6 +622,12 @@ function showFailedUI(message = "SCAN FAILED - SEE ERROR REPORT") {
     if(elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
+
+    // Ensure main view tabs are shown and editor is hidden on failure
+    if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'flex';
+    if (elements.tabContentArea) elements.tabContentArea.style.display = 'flex';
+    if (elements.fileEditor) elements.fileEditor.style.display = 'none';
+    appState.editorActiveAsMainView = false;
 }
 
 function commitSelections() {
@@ -657,7 +684,7 @@ function commitSelections() {
     }
 
     appState.selectionCommitted = true;
-    uiManager.refreshAllUI();
+    if (typeof uiManager.refreshAllUI === 'function') uiManager.refreshAllUI(); // Ensure UI reflects the commit
     if (elements.createAiBriefBtn) {
         elements.createAiBriefBtn.disabled = !(appState.committedScanData && appState.committedScanData.allFilesList && appState.committedScanData.allFilesList.length > 0);
     }
@@ -671,7 +698,7 @@ function commitSelections() {
 
 function clearProjectData() {
     notificationSystem.showNotification("Project data cleared.", {duration: 2000});
-    resetUIForProcessing("DROP A FOLDER OR SELECT ONE TO BEGIN.");
+    resetUIForProcessing("DROP A FOLDER OR SELECT ONE TO BEGIN."); // This will also hide editor view
     if(elements.loader) elements.loader.classList.remove('visible');
     if(elements.mainActionDiv && elements.mainActionDiv.style) elements.mainActionDiv.style.display = 'flex';
     if (elements.createAiBriefBtn) elements.createAiBriefBtn.disabled = true;
@@ -686,38 +713,41 @@ function copyReport() {
 }
 
 function initApp() {
-    populateElements(); // Must be first to ensure elements are available
+    populateElements();
 
-    // Initialize all modules
     notificationSystem.initNotificationSystem();
     errorHandler.initErrorHandlers();
     fileEditor.initFileEditor();
     aiPatcher.initAiPatcher();
     aiBriefingStudio.initAiBriefingStudio();
     scaffoldImporter.initScaffoldImporter();
-    uiManager.initTabs();
-    sidebarResizer.initResizer(elements.leftSidebar, elements.sidebarResizer, elements.mainView); // Call after elements are populated
+    uiManager.initTabs(); // Initialize tabs before trying to activate one
+    sidebarResizer.initResizer(elements.leftSidebar, elements.sidebarResizer, elements.mainView);
 
 
-    document.body.className = ''; // Remove any loading class from body
+    document.body.className = '';
 
-    // Initial UI state for the new layout
     if (elements.leftSidebar) elements.leftSidebar.style.display = 'flex';
     if (elements.mainActionDiv) elements.mainActionDiv.style.display = 'flex';
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.style.display = 'block';
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.style.display = 'block';
 
     if (elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) {
-        elements.visualOutputContainer.style.display = 'none'; // Hide tree panel initially
+        elements.visualOutputContainer.style.display = 'none';
     }
     if (elements.treeViewControls) elements.treeViewControls.style.display = 'none';
     if (elements.generalActions) elements.generalActions.style.display = 'none';
 
 
-    if (elements.mainView) elements.mainView.style.display = 'flex'; // Show main view area (tabs + content)
-    if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'none'; // Hide stats initially
+    if (elements.mainView) elements.mainView.style.display = 'flex';
+    if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'none';
 
-    // Deactivate all tabs and hide their content initially
+    // Ensure tab view elements are visible initially, and editor is hidden
+    if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'flex';
+    if (elements.tabContentArea) elements.tabContentArea.style.display = 'flex';
+    if (elements.fileEditor) elements.fileEditor.style.display = 'none'; // Editor starts hidden
+
+    // Deactivate all tabs and hide their content initially (will be handled by activateTab)
     if (elements.tabContentArea) {
         elements.tabContentArea.querySelectorAll('.tab-content-item').forEach(tc => {
              tc.classList.remove('active');
@@ -727,10 +757,16 @@ function initApp() {
     if (elements.mainViewTabs) {
         elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
     }
-    appState.activeTabId = null; // No tab active initially
+    // Activate the default tab
+    appState.activeTabId = 'textReportTab'; // Set default active tab
+    if (typeof uiManager.activateTab === 'function') {
+        uiManager.activateTab(appState.activeTabId);
+    }
+
 
     const modalsToHideOnInit = [
-        elements.fileEditor, elements.filePreview, elements.errorReport,
+        /* elements.fileEditor, // No longer a modal */
+        elements.filePreview, elements.errorReport,
         elements.aiPatchDiffModal, elements.aiBriefingStudioModal, elements.scaffoldImportModal
     ];
     modalsToHideOnInit.forEach(panel => { if (panel && panel.style) panel.style.display = 'none'; });
@@ -739,20 +775,20 @@ function initApp() {
     if (elements.loader) elements.loader.classList.remove('visible');
 
 
-    disableUIControls(); // Disable most controls initially
-    if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false; // Ensure scaffold btn is enabled
-    if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false; // Ensure scaffold prompt btn is enabled
+    disableUIControls();
+    if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
+    if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
     if (elements.createAiBriefBtn) elements.createAiBriefBtn.disabled = true;
 
 
-    setupEventListeners(); // Setup general event listeners
+    setupEventListeners();
 
     if (elements.pageLoader) elements.pageLoader.classList.add('hidden');
     document.body.classList.add('loaded');
 
     appState.initialLoadComplete = true;
-    console.log("DirAnalyse Matrix Initialized with new UI structure. CodeMirror integration started.");
+    console.log("DirAnalyse Matrix Initialized with main view editor. CodeMirror integration started.");
 }
 document.addEventListener('DOMContentLoaded', initApp);
 // --- ENDFILE: js/main.js --- //

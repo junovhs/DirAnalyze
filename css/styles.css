@@ -292,13 +292,12 @@ body {
 }
 
 .tab-content-item {
-    display: none;
+    display: none; /* Controlled by JS and .active */
     flex-grow: 1; /* Fill #tabContentArea */
-    /* height: 100%; Removed, flex-grow handles it */
     overflow: hidden; /* This panel itself should not scroll, its children might */
 }
 .tab-content-item.active {
-    display: flex;
+    display: flex; /* Show active tab content */
     flex-direction: column; /* Ensure children stack correctly */
 }
 
@@ -429,7 +428,28 @@ body {
 .tree ul { list-style-type: none; padding-left: 20px; margin: 2px 0; } /* Increased padding */
 .tree li { margin: 0; position: relative; padding: 0; display: flex; flex-direction: column; }
 .tree li > .item-line { display: flex; align-items: center; padding: 2px 0; } /* Increased padding */
-.tree li.filtered-out { display: none; } /* Keep it simple */
+
+/* Styling for dimmed (uncommitted) items in the tree */
+.tree li.dimmed-uncommitted > .item-line {
+    opacity: 0.6;
+}
+.tree li.dimmed-uncommitted > .item-line .name,
+.tree li.dimmed-uncommitted > .item-line .stats,
+.tree li.dimmed-uncommitted > .item-line .icon svg,
+.tree li.dimmed-uncommitted > .item-line .folder-toggle {
+    color: var(--dim-color) !important;
+    fill: var(--dim-color) !important;
+}
+.tree li.dimmed-uncommitted > .item-line .selector {
+    opacity: 0.65;
+}
+.tree li.filtered-out {
+    /* This class is no longer used by default for commit filtering if dimming is used.
+       It can be used for other types of dynamic filtering if needed.
+       If used, 'display: none;' would hide the item.
+    */
+}
+
 .tree li::before { content: ""; position: absolute; left: -11px; top: 0.7em; border-left: 1px solid var(--dim-color); height: 100%; } /* Adjusted position */
 .tree > li:last-child::before { height: 0.7em; }
 .tree ul > li::before { top: -0.5em; height: calc(100% + 0.5em); } /* Adjusted */
@@ -454,9 +474,10 @@ body {
 .tree .stats { font-size: 0.75em; color: var(--dim-color); margin-left: 8px; white-space: nowrap; } /* Increased margin */
 .tree .folder > ul { display: block; }
 .tree .folder.collapsed > ul { display: none; }
-.file-actions { display: flex; gap: 6px; margin-left: 8px; } /* Increased gap/margin */
-.edit-btn, .preview-btn { cursor: pointer; transition: transform 0.2s; font-size: 0.9em; } /* Larger icons */
-.edit-btn:hover, .preview-btn:hover { transform: scale(1.1); color: var(--accent-color); }
+/* .file-actions were removed from treeView.js, so this style is no longer needed for the tree */
+/* .file-actions { display: flex; gap: 6px; margin-left: 8px; } */
+/* .edit-btn, .preview-btn were removed from treeView.js */
+/* .edit-btn:hover, .preview-btn:hover { transform: scale(1.1); color: var(--accent-color); } */
 
 /* Button Styles */
 .button-container { margin-top: auto; /* Push to bottom in flex layouts */ text-align: right; display: flex; justify-content: flex-end; gap: 10px; padding: 15px; /* More padding */ flex-shrink:0; border-top:1px solid var(--border-color); background-color: var(--panel-bg); }
@@ -485,7 +506,7 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
 
 /* --- MODAL STYLING --- */
 .diff-modal {
-    display: none;
+    display: none; /* Correctly 'none' by default */
     position: fixed;
     z-index: 2000;
     left: 0;
@@ -494,7 +515,7 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
     height: 100%;
     overflow: hidden;
     background-color: rgba(0,0,0,0.65);
-    display: flex;
+    /* display: flex; Changed display to none, JS will set to flex when shown */
     align-items: center;
     justify-content: center;
     padding: 20px;
@@ -539,7 +560,7 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
 }
 #diffOutputContainer {
     white-space: pre-wrap; font-family: var(--font-main); font-size: 0.85em;
-    border: 1px solid var(--border-color); margin: 0; /* Removed margin if inside modal-scrollable */
+    border: 1px solid var(--border-color); margin: 0;
     padding: 10px; max-height: 60vh; overflow-y: auto; background-color: var(--bg-color);
     line-height: 1.5; flex-grow:1;
 }
@@ -556,11 +577,11 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
     flex-shrink: 0;
     background-color: var(--panel-bg); /* Consistent with header */
 }
-.diff-modal-actions .action-button.secondary { background-color: var(--highlight-bg); color: var(--text-color); border-color: var(--border-color); } /* Adjusted secondary */
+.diff-modal-actions .action-button.secondary { background-color: var(--highlight-bg); color: var(--text-color); border-color: var(--border-color); }
 .diff-modal-actions .action-button.secondary:hover { background-color: var(--border-color); }
 
-
-#filePreview, #fileEditor, .error-panel {
+/* File Preview Modal (remains a modal) */
+#filePreview, .error-panel { /* Grouped error-panel as it's also a modal */
     position: fixed;
     top: 50%;
     left: 50%;
@@ -569,12 +590,11 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
     border: 1px solid #c8c8c8;
     border-radius: var(--border-radius-medium);
     box-shadow: 0 8px 16px rgba(0,0,0,0.15);
-    z-index: 2010;
-    display: none;
+    z-index: 2010; /* Error panel might need higher z-index if it can overlap preview */
+    display: none; /* Initially hidden */
     flex-direction: column;
     overflow: hidden;
 }
-
 #filePreview { padding: 0; width: 80%; max-width: 900px; height: 80vh; max-height: 700px; }
 #filePreviewTitle { padding: 12px 18px; margin:0; border-bottom: 1px solid var(--border-color); font-size:1.15em; color: var(--header-color); font-weight:500; background-color:var(--panel-bg);}
 #filePreviewContentWrapper { flex-grow: 1; overflow: hidden; position: relative; display: flex; padding: 1px; }
@@ -583,12 +603,50 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
 #closePreview:hover { color:var(--text-color); }
 
 
-#fileEditor { z-index: 2020; width: 85vw; max-width: 1100px; height: 85vh; max-height: 800px; padding:0; }
-.editor-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: var(--panel-bg); border-bottom: 1px solid var(--border-color); flex-shrink:0; }
+/* File Editor (Now a main view panel, not a modal) */
+#fileEditor {
+    /* display: none; /* Initially hidden, controlled by JS. Set in HTML for safety. */
+    flex-direction: column;
+    flex-grow: 1; /* Takes available space in #mainView */
+    height: 100%; /* Fill height of #mainView if #mainView has fixed height or is flex item */
+    width: 100%;
+    overflow: hidden; /* Manages its own scrolling internally */
+    background-color: var(--bg-color); /* Match app background or panel background */
+    border: 1px solid var(--border-color); /* Optional: border to distinguish if needed */
+    border-radius: var(--border-radius-medium); /* Consistent with other panels */
+    box-sizing: border-box;
+}
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: var(--panel-bg);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
 .editor-header h3 { margin: 0; font-size: 1.1em; font-weight:500; }
-.editor-container { flex-grow: 1; overflow: hidden; position: relative; display: flex; padding: 1px; }
-#editorContent { flex-grow: 1; height: 100%; }
-.editor-footer { padding: 8px 15px; border-top: 1px solid var(--border-color); font-size: 0.8em; color: var(--dim-color); background-color: var(--panel-bg); flex-shrink:0; }
+.editor-container {
+    flex-grow: 1;
+    overflow: hidden; /* CodeMirror will handle its own scroll */
+    position: relative; /* For CodeMirror positioning if needed */
+    display: flex; /* Ensure editorContent can fill */
+    padding: 1px; /* Minimal padding or border visual */
+    background-color: var(--bg-color); /* Ensure editor area background */
+}
+#editorContent {
+    flex-grow: 1;
+    height: 100%;
+    width: 100%;
+}
+.editor-footer {
+    padding: 8px 15px;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.8em;
+    color: var(--dim-color);
+    background-color: var(--panel-bg);
+    flex-shrink: 0;
+}
 .editor-status { padding: 3px 7px; border-radius: var(--border-radius-small); font-size: 0.8em; margin: 0 10px; display: inline-block; min-width: 100px; text-align: center; }
 .status-saved { color: var(--status-saved); background-color: #e6f9e9; border: 1px solid #c1e8c5;}
 .status-unsaved { color: var(--status-unsaved); font-weight: bold; background-color: #fff8e1; border: 1px solid #ffecb3;}
@@ -598,17 +656,17 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
 .editor-button:hover:not(:disabled) { background-color: var(--button-hover-bg); } .editor-button:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
 
 .CodeMirror {
-  border: 1px solid var(--border-color);
+  /* border: 1px solid var(--border-color); /* Border handled by #fileEditor or .editor-container */
   height: 100% !important;
   font-family: var(--font-main) !important;
   font-size: 0.9em !important;
   line-height: 1.5 !important;
 }
-#filePreviewContentWrapper .CodeMirror,
-.editor-container .CodeMirror {
+#filePreviewContentWrapper .CodeMirror, /* For Preview Modal */
+.editor-container .CodeMirror { /* For Main View Editor */
     height: 100%;
     width: 100%;
-    border: none;
+    border: none; /* CodeMirror itself should not have a border if container does */
 }
 
 
@@ -657,10 +715,12 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
     #mainView {
         padding: 10px;
         border-left: none; /* No left border when stacked */
+        min-height: 400px; /* Ensure mainView has some height */
     }
-    #tabContentArea .content-panel, #textOutput {
+    #tabContentArea .content-panel, #textOutput,
+    #fileEditor /* Ensure editor also behaves in responsive */ {
          min-height: 300px;
-         max-height: 60vh;
+         max-height: 60vh; /* Or a fixed vh if preferred */
     }
     #leftSidebar #visualOutputContainer {
         max-height: 50vh;
@@ -692,7 +752,8 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
     button.action-button, .utility-button { font-size: 0.8em; padding: 6px 10px; }
     .editor-button { font-size: 0.8em; }
 
-    #fileEditor, #filePreview,
+    /* Modals and Preview panels to take more screen width */
+    #filePreview,
     #scaffoldImportModal .diff-modal-content,
     #aiPatchDiffModal .diff-modal-content,
     #aiBriefingStudioModal .diff-modal-content,
@@ -703,35 +764,9 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
         max-height: 90vh;
     }
      .diff-modal { padding: 10px; }
+     /* File Editor is no longer a modal, so it's handled by #mainView responsive styles */
 }
 
 body.loaded #appContainer {
     /* Styles to apply after loading, if any specific are needed */
 }
-
-/* ADD THIS BLOCK */
-.tree li.dimmed-uncommitted > .item-line {
-    opacity: 0.6;
-}
-.tree li.dimmed-uncommitted > .item-line .name,
-.tree li.dimmed-uncommitted > .item-line .stats,
-.tree li.dimmed-uncommitted > .item-line .icon svg,
-.tree li.dimmed-uncommitted > .item-line .folder-toggle {
-    color: var(--dim-color) !important; /* Use important to ensure override if needed */
-    fill: var(--dim-color) !important; /* For SVG icon fill */
-}
-.tree li.dimmed-uncommitted > .item-line .selector {
-    opacity: 0.65;
-}
-
-/* Ensure filtered-out does not interfere with dimming if it was used for commit filtering */
-/* If .filtered-out is used for other dynamic filtering, this specific rule might need adjustment */
-/* For now, assuming .dimmed-uncommitted takes precedence for visibility of uncommitted items */
-.tree li.filtered-out {
-    /* display: none; */ /* This line might have previously hidden items on commit */
-    /* If you still need a general .filtered-out class for other purposes that *does* hide items,
-       ensure the logic in updateVisualTreeFiltering doesn't apply .filtered-out for commit dimming.
-       The provided uiManager.js change will stop using .filtered-out for commit status.
-    */
-}
-/* END OF ADDED BLOCK */
