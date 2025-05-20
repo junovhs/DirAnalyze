@@ -60,7 +60,6 @@
     <div id="appContainer">
         <aside id="leftSidebar">
             <header id="sidebarHeader">
-                 <!-- Text "DirAnalyse" removed, img tag modified -->
                  <img src="logo.png" alt="Logo" class="header-logo" style="width: 250px; height: auto; display: block; margin-left: auto; margin-right: auto;">
             </header>
 
@@ -91,14 +90,14 @@
             </div>
             <hr class="sidebar-hr">
 
-            <div id="visualOutputContainer" class="content-panel tab-content-item"> <!-- Directory Tree now in left sidebar -->
+            <div id="visualOutputContainer" class="content-panel tab-content-item">
                 <div class="panel-header"><h2>DIRECTORY TREE</h2></div>
                 <div id="treeContainer" class="tree"></div>
             </div>
             <hr class="sidebar-hr">
 
             <div id="generalActions">
-                <button id="createAiBriefBtn" class="action-button utility-button" title="Create a portable briefing package for an external AI chat" disabled>CREATE AI BRIEF</button>
+                <button id="copyPatchPromptBtn" class="action-button utility-button" title="Copy prompt for AI to generate code patches" disabled>COPY PATCH PROMPT</button>
                 <button id="downloadProjectBtn" class="action-button utility-button" disabled title="Download project as ZIP">DOWNLOAD ZIP</button>
                 <button id="clearProjectBtn" class="action-button utility-button" disabled title="Clear all project data">CLEAR PROJECT</button>
             </div>
@@ -125,7 +124,9 @@
                     <div id="combineModePanel" class="content-panel">
                         <div class="panel-header"><h2>COMMITTED FILES FOR COMBINING</h2></div>
                         <div id="selectedFilesContainer"><div class="empty-notice">NO FILES IN COMMITTED SELECTION.<br>USE TREE AND 'COMMIT SELECTIONS'.</div></div>
-                        <div class="button-container"><button id="copySelectedBtn" class="action-button" disabled>COPY COMMITTED FILES</button></div>
+                        <div class="button-container">
+                            <button id="copySelectedBtn" class="action-button" disabled title="Download committed text files as a single .txt file">COPY COMMITTED FILES</button>
+                        </div>
                     </div>
                 </div>
 
@@ -144,7 +145,6 @@
                     </div>
                 </div>
             </div>
-            <!-- File Editor moved inside mainView and initially hidden -->
             <div id="fileEditor" style="display:none;">
                 <div class="editor-header">
                     <h3 id="editorFileTitle">FILE EDITOR</h3><div class="editor-status" id="editorStatus"></div>
@@ -172,7 +172,7 @@
                 </table>
             </div>
         </aside>
-    </div> <!-- End appContainer -->
+    </div>
 
     <div id="notification" class="notification"></div>
 
@@ -184,7 +184,6 @@
         </div>
     </div>
 
-    <!-- File Preview Modal remains outside mainView as it's a true modal -->
     <div id="filePreview">
         <button id="closePreview">×</button><h3 id="filePreviewTitle"></h3>
         <div id="filePreviewContentWrapper" style="height: calc(100% - 40px); width: 100%;">
@@ -192,7 +191,6 @@
         </div>
     </div>
 
-    <!-- Other Modals -->
     <div id="aiBriefingStudioModal" class="diff-modal" style="display:none;">
         <div class="diff-modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom:15px; border-bottom: 1px solid var(--border-color); padding-bottom:10px;">

@@ -26,8 +26,8 @@ export const appState = {
     editorInstance: null,
     previewEditorInstance: null,
     isLoadingFileContent: false,
-    editorActiveAsMainView: false, // Added: Tracks if editor is the main view
-    previousActiveTabId: null,   // Added: Stores tab ID before editor opens
+    editorActiveAsMainView: false,
+    previousActiveTabId: null,
 };
 
 export let elements = {};
@@ -71,7 +71,7 @@ function populateElements() {
         visualOutputContainer: 'visualOutputContainer',
         notification: 'notification',
         errorReport: 'errorReport',
-        fileEditor: 'fileEditor', // Stays here, its display style changes
+        fileEditor: 'fileEditor',
         editorFileTitle: 'editorFileTitle',
         editorContent: 'editorContent',
         saveEditorBtn: 'saveEditorBtn',
@@ -90,7 +90,8 @@ function populateElements() {
         skipPatchChanges: 'skipPatchChanges',
         cancelAllPatchChanges: 'cancelAllPatchChanges',
         mainActionDiv: 'mainAction',
-        createAiBriefBtn: 'createAiBriefBtn',
+        // createAiBriefBtn: 'createAiBriefBtn', // Removed
+        copyPatchPromptBtn: 'copyPatchPromptBtn', // Added
         aiBriefingStudioModal: 'aiBriefingStudioModal',
         closeAiBriefingStudioModal: 'closeAiBriefingStudioModal',
         aiBriefTaskInput: 'aiBriefTaskInput',
@@ -194,6 +195,71 @@ Example of the expected JSON object format:
 Now, based on my request, generate the project scaffold JSON object:
 `;
 
+const capcaPatchPromptTemplate = `You are an AI assistant helping with code modifications. I will provide you with a file path and its content. Your task is to generate a JSON array of "Contextual Anchor Patch Content Application" (CAPCA) instructions to modify this file.
+
+Each instruction in the JSON array must be an object with the following properties:
+1.  "file": (string) The full path of the file to be modified (I will provide this).
+2.  "operation": (string) The type of operation. Supported operations are:
+    *   "create_file_with_content": Creates a new file.
+        *   Required: "newText" (string) - The full content of the new file.
+        *   Do NOT use "anchorText" or "segmentToAffect" for this operation.
+    *   "replace_segment_after_anchor": Replaces a specific segment of text that appears AFTER a unique anchor text.
+        *   Required: "anchorText" (string) - A unique string in the file that precedes the segment to be replaced. This anchor should be distinctive.
+        *   Required: "segmentToAffect" (string) - The exact segment of text to be replaced. This segment must appear immediately or very closely after the "anchorText".
+        *   Required: "newText" (string) - The new text that will replace "segmentToAffect".
+        *   Optional: "originalLineOfAnchor" (number) - The original line number where "anchorText" is expected. Helps disambiguate if anchor is not unique.
+        *   Optional: "leniencyChars" (number, default 5) - How many characters after the anchor the "segmentToAffect" can start.
+    *   "insert_text_after_anchor": Inserts text immediately AFTER a unique anchor text.
+        *   Required: "anchorText" (string) - A unique string in the file after which the new text will be inserted.
+        *   Required: "newText" (string) - The text to be inserted.
+        *   Optional: "originalLineOfAnchor" (number) - The original line number where "anchorText" is expected.
+    *   "delete_segment_after_anchor": Deletes a specific segment of text that appears AFTER a unique anchor text.
+        *   Required: "anchorText" (string) - A unique string in the file that precedes the segment to be deleted.
+        *   Required: "segmentToAffect" (string) - The exact segment of text to be deleted.
+        *   Optional: "originalLineOfAnchor" (number) - The original line number where "anchorText" is expected.
+        *   Optional: "leniencyChars" (number, default 5) - How many characters after the anchor the "segmentToAffect" can start.
+
+General Guidelines for CAPCA instructions:
+-   Ensure "anchorText" is as unique and stable as possible. Prefer anchors that span multiple lines if it increases uniqueness, using "\\n" for newlines within the "anchorText" string.
+-   "segmentToAffect" should be the exact text to replace or delete. For multi-line segments, use "\\n" for newlines.
+-   If replacing an entire file's content, it's often better to use a single "replace_segment_after_anchor" where "anchorText" is an empty string at the beginning of the file (or a very early, stable marker like "<?php" or "<!DOCTYPE html>") and "segmentToAffect" is the ENTIRE old content, and "newText" is the ENTIRE new content. The DirAnalyse tool's \`findRobustAnchorIndex\` handles an empty \`anchorText\` by returning index 0. So, to replace the whole file, use \`anchorText: ""\`, \`segmentToAffect: "[original full content of the file]"\`, \`newText: "[new full content of the file]"\`)
+-   If "segmentToAffect" is intended to be empty (e.g., replacing nothing with something, effectively an insert at a specific point after an anchor where the 'nothing' is precisely located), provide \`segmentToAffect: ""\`. This is distinct from \`insert_text_after_anchor\` which always inserts *immediately* after the anchor.
+-   Generate ONLY the JSON array. Do not include any explanations, comments, or markdown formatting like \`\`\`json ... \`\`\` around the JSON output.
+-   The output must be a single, valid JSON array of CAPCA instruction objects.
+
+Example:
+If the file "src/example.js" has content:
+\`\`\`javascript
+// app.js
+function greetOld() {
+  console.log("Hello, old world!");
+}
+// More code
+\`\`\`
+And I want to change \`greetOld\` to \`greetNew\` and update the message.
+A possible CAPCA instruction JSON would be:
+\`\`\`json
+[
+  {
+    "file": "src/example.js",
+    "operation": "replace_segment_after_anchor",
+    "anchorText": "// app.js\\n",
+    "segmentToAffect": "function greetOld() {\\n  console.log(\\"Hello, old world!\\");\\n}",
+    "newText": "function greetNew() {\\n  console.log(\\"Hello, new world!\\");\\n}",
+    "originalLineOfAnchor": 1
+  }
+]
+\`\`\`
+
+Now, here is the file path and its current content. Please generate the CAPCA JSON based on the changes I will describe next (or if I just ask you to refactor/fix something, infer the changes and generate the patches):
+File Path: [User will paste file path here]
+Current Content:
+---
+[User will paste file content here]
+---
+`;
+
+
 function handleCopyScaffoldPrompt() {
     navigator.clipboard.writeText(scaffoldPromptTemplate)
         .then(() => {
@@ -209,24 +275,16 @@ function handleCopyScaffoldPrompt() {
         });
 }
 
-function handleCreateAiBrief() {
-    if (!appState.committedScanData || !appState.committedScanData.allFilesList || appState.committedScanData.allFilesList.length === 0) {
-        notificationSystem.showNotification("No committed files to create a brief from. Please commit selections first.", { duration: 3500 });
-        return;
-    }
-
-    const filePaths = appState.committedScanData.allFilesList.map(file => file.path);
-    const fileListString = "Project Context - File Paths:\n" + filePaths.join("\n");
-
-    navigator.clipboard.writeText(fileListString)
+function handleCopyPatchPrompt() {
+    navigator.clipboard.writeText(capcaPatchPromptTemplate)
         .then(() => {
-            notificationSystem.showNotification("Committed file paths copied for AI Brief!", { duration: 3000 });
+            notificationSystem.showNotification("AI Patch Generation Prompt copied to clipboard!", { duration: 3500 });
         })
         .catch(err => {
-            console.error('Failed to copy file paths: ', err);
+            console.error('Failed to copy patch prompt: ', err);
             errorHandler.showError({
                 name: "ClipboardError",
-                message: "Failed to copy file paths to clipboard.",
+                message: "Failed to copy patch prompt to clipboard.",
                 stack: err.stack
             });
         });
@@ -251,7 +309,8 @@ function setupEventListeners() {
     safeAddEventListener(elements.commitSelectionsBtn, 'click', commitSelections, 'commitSelectionsBtn');
     safeAddEventListener(elements.downloadProjectBtn, 'click', zipManager.downloadProjectAsZip, 'downloadProjectBtn');
     safeAddEventListener(elements.clearProjectBtn, 'click', clearProjectData, 'clearProjectBtn');
-    safeAddEventListener(elements.createAiBriefBtn, 'click', handleCreateAiBrief, 'createAiBriefBtn');
+    // safeAddEventListener(elements.createAiBriefBtn, 'click', handleCreateAiBrief, 'createAiBriefBtn'); // Removed
+    safeAddEventListener(elements.copyPatchPromptBtn, 'click', handleCopyPatchPrompt, 'copyPatchPromptBtn'); // Added
 
     safeAddEventListener(elements.expandAllBtn, 'click', () => treeView.toggleAllFolders(false), 'expandAllBtn');
     safeAddEventListener(elements.collapseAllBtn, 'click', () => treeView.toggleAllFolders(true), 'collapseAllBtn');
@@ -311,7 +370,7 @@ async function processSelectedFolderViaInput(files, rootDirName) {
         if (elements.treeViewControls) elements.treeViewControls.style.display = 'flex';
         if (elements.generalActions) elements.generalActions.style.display = 'flex';
 
-        uiManager.activateTab(appState.activeTabId || 'textReportTab'); // Ensures a tab is active
+        uiManager.activateTab(appState.activeTabId || 'textReportTab'); 
         uiManager.refreshAllUI();
         enableUIControls();
 
@@ -368,7 +427,7 @@ function createVirtualDirectoryFromFiles(fileList, rootName) {
         const fileInfo = {
             name: fileName, type: 'file', size: file.size, path: filePath,
             extension: ext, depth: pathParts.length + 1,
-            entryHandle: file // Storing the File object directly as the handle for input type=file
+            entryHandle: file 
         };
         currentParent.children.push(fileInfo);
         allFilesList.push({ ...fileInfo });
@@ -411,7 +470,7 @@ function createVirtualDirectoryFromFiles(fileList, rootName) {
 function countEmptyDirs(node, rootName) {
     let count = 0;
     if (node.type === 'folder') {
-        if (node.children.length === 0 && node.name !== rootName) { // Don't count root itself if it's empty
+        if (node.children.length === 0 && node.name !== rootName) { 
             count = 1;
         }
         else { for (const child of node.children) { count += countEmptyDirs(child, rootName); } }
@@ -479,14 +538,12 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
         elements.loader.classList.add('visible');
     }
 
-    // If editor was main view, close it and restore tabs
     if (appState.editorActiveAsMainView && typeof fileEditor.closeEditor === 'function') {
-        fileEditor.closeEditor(); // This should handle restoring tab view visibility
+        fileEditor.closeEditor(); 
     } else {
-        // Explicitly ensure tab view is visible if editor wasn't active or closeEditor didn't handle it
         if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'flex';
         if (elements.tabContentArea) elements.tabContentArea.style.display = 'flex';
-        if (elements.fileEditor) elements.fileEditor.style.display = 'none'; // Ensure editor panel is hidden
+        if (elements.fileEditor) elements.fileEditor.style.display = 'none'; 
     }
     appState.editorActiveAsMainView = false;
     appState.previousActiveTabId = null;
@@ -513,7 +570,6 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
 
 
     const modalsToHide = [
-        /* elements.fileEditor, // No longer treated as a popup modal here */
         elements.aiBriefingStudioModal, elements.scaffoldImportModal,
         elements.aiPatchDiffModal, elements.filePreview, elements.errorReport
     ];
@@ -537,7 +593,7 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
 
     appState.fullScanData = null; appState.committedScanData = null;
     appState.selectionCommitted = false; appState.currentEditingFile = null;
-    appState.activeTabId = 'textReportTab'; // Default to text report tab on reset
+    appState.activeTabId = 'textReportTab'; 
 
     if (fileEditor.getAllEditedFiles && typeof fileEditor.getAllEditedFiles === 'function') {
         const editedFilesMap = fileEditor.getAllEditedFiles();
@@ -550,9 +606,10 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
+    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true; // Disabled initially
 
     if (typeof uiManager.activateTab === 'function') {
-        uiManager.activateTab('textReportTab'); // Ensure a tab is active
+        uiManager.activateTab('textReportTab'); 
     }
 }
 
@@ -561,13 +618,10 @@ export function enableUIControls() {
         elements.selectAllBtn, elements.deselectAllBtn, elements.commitSelectionsBtn,
         elements.expandAllBtn, elements.collapseAllBtn,
         elements.downloadProjectBtn, elements.clearProjectBtn, elements.copyReportButton,
-        elements.applyAiPatchBtn
+        elements.applyAiPatchBtn, elements.copyPatchPromptBtn // Added copyPatchPromptBtn
     ];
     buttonsToEnable.forEach(btn => { if (btn) btn.disabled = false; });
 
-    if (elements.createAiBriefBtn) {
-        elements.createAiBriefBtn.disabled = !(appState.committedScanData && appState.committedScanData.allFilesList && appState.committedScanData.allFilesList.length > 0);
-    }
     if (elements.importAiScaffoldBtn) {
         elements.importAiScaffoldBtn.disabled = appState.processingInProgress;
     }
@@ -591,8 +645,8 @@ function disableUIControls() {
         elements.expandAllBtn, elements.collapseAllBtn,
         elements.downloadProjectBtn, elements.clearProjectBtn, elements.copyReportButton,
         elements.copySelectedBtn,
-        elements.createAiBriefBtn,
-        elements.applyAiPatchBtn
+        elements.applyAiPatchBtn,
+        elements.copyPatchPromptBtn // Added copyPatchPromptBtn
     ];
     buttonsToDisable.forEach(btn => { if (btn) btn.disabled = true; });
     if(elements.mainViewTabs) elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.disabled = true);
@@ -622,8 +676,9 @@ function showFailedUI(message = "SCAN FAILED - SEE ERROR REPORT") {
     if(elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
+    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true;
 
-    // Ensure main view tabs are shown and editor is hidden on failure
+
     if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'flex';
     if (elements.tabContentArea) elements.tabContentArea.style.display = 'flex';
     if (elements.fileEditor) elements.fileEditor.style.display = 'none';
@@ -684,11 +739,8 @@ function commitSelections() {
     }
 
     appState.selectionCommitted = true;
-    if (typeof uiManager.refreshAllUI === 'function') uiManager.refreshAllUI(); // Ensure UI reflects the commit
-    if (elements.createAiBriefBtn) {
-        elements.createAiBriefBtn.disabled = !(appState.committedScanData && appState.committedScanData.allFilesList && appState.committedScanData.allFilesList.length > 0);
-    }
-
+    if (typeof uiManager.refreshAllUI === 'function') uiManager.refreshAllUI(); 
+    
     if(currentSelectedPaths.size > 0) {
         notificationSystem.showNotification("Selections committed successfully");
     } else if (appState.fullScanData.allFilesList && appState.fullScanData.allFilesList.length === 0) {
@@ -698,10 +750,10 @@ function commitSelections() {
 
 function clearProjectData() {
     notificationSystem.showNotification("Project data cleared.", {duration: 2000});
-    resetUIForProcessing("DROP A FOLDER OR SELECT ONE TO BEGIN."); // This will also hide editor view
+    resetUIForProcessing("DROP A FOLDER OR SELECT ONE TO BEGIN."); 
     if(elements.loader) elements.loader.classList.remove('visible');
     if(elements.mainActionDiv && elements.mainActionDiv.style) elements.mainActionDiv.style.display = 'flex';
-    if (elements.createAiBriefBtn) elements.createAiBriefBtn.disabled = true;
+    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true; 
 }
 
 function copyReport() {
@@ -721,7 +773,7 @@ function initApp() {
     aiPatcher.initAiPatcher();
     aiBriefingStudio.initAiBriefingStudio();
     scaffoldImporter.initScaffoldImporter();
-    uiManager.initTabs(); // Initialize tabs before trying to activate one
+    uiManager.initTabs(); 
     sidebarResizer.initResizer(elements.leftSidebar, elements.sidebarResizer, elements.mainView);
 
 
@@ -742,12 +794,10 @@ function initApp() {
     if (elements.mainView) elements.mainView.style.display = 'flex';
     if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'none';
 
-    // Ensure tab view elements are visible initially, and editor is hidden
     if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'flex';
     if (elements.tabContentArea) elements.tabContentArea.style.display = 'flex';
-    if (elements.fileEditor) elements.fileEditor.style.display = 'none'; // Editor starts hidden
+    if (elements.fileEditor) elements.fileEditor.style.display = 'none'; 
 
-    // Deactivate all tabs and hide their content initially (will be handled by activateTab)
     if (elements.tabContentArea) {
         elements.tabContentArea.querySelectorAll('.tab-content-item').forEach(tc => {
              tc.classList.remove('active');
@@ -757,15 +807,13 @@ function initApp() {
     if (elements.mainViewTabs) {
         elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
     }
-    // Activate the default tab
-    appState.activeTabId = 'textReportTab'; // Set default active tab
+    appState.activeTabId = 'textReportTab'; 
     if (typeof uiManager.activateTab === 'function') {
         uiManager.activateTab(appState.activeTabId);
     }
 
 
     const modalsToHideOnInit = [
-        /* elements.fileEditor, // No longer a modal */
         elements.filePreview, elements.errorReport,
         elements.aiPatchDiffModal, elements.aiBriefingStudioModal, elements.scaffoldImportModal
     ];
@@ -779,7 +827,7 @@ function initApp() {
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
-    if (elements.createAiBriefBtn) elements.createAiBriefBtn.disabled = true;
+    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true;
 
 
     setupEventListeners();
@@ -788,7 +836,7 @@ function initApp() {
     document.body.classList.add('loaded');
 
     appState.initialLoadComplete = true;
-    console.log("DirAnalyse Matrix Initialized with main view editor. CodeMirror integration started.");
+    console.log("DirAnalyse Matrix Initialized. Main view editor and new button logic active.");
 }
 document.addEventListener('DOMContentLoaded', initApp);
 // --- ENDFILE: js/main.js --- //
