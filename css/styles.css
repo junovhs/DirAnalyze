@@ -377,15 +377,34 @@ body {
     resize: vertical;
     box-sizing: border-box;
 }
-#aiPatchPanel .patch-input-area, #aiPatchPanel .patch-results-area {
+#aiPatchPanel .patch-input-area {
+    padding: 10px; /* Padding around inner sections */
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* Consistent gap for direct children like button, p, textarea, button */
+}
+
+/* Ensure buttons within patch-input-area are not full width by default unless they have utility-button class */
+#aiPatchPanel .patch-input-area > .action-button {
+    width: auto; /* Override utility-button's width if it was accidentally kept */
+    align-self: flex-start; /* Align to the start if not full width */
+}
+#aiPatchPanel .patch-input-area > p {
+    font-size: 0.9em;
+    line-height: 1.5;
+    color: var(--text-color); /* Ensure good contrast for instructions */
+    margin-top: 5px; /* Adjusted from inline style */
+    margin-bottom: 5px; /* Adjusted from inline style */
+}
+
+
+#aiPatchPanel .patch-results-area {
+    flex-grow: 1;
+    overflow: hidden;
     padding: 10px; /* Padding around inner sections */
     display: flex;
     flex-direction: column;
     gap: 8px;
-}
-#aiPatchPanel .patch-results-area {
-    flex-grow: 1;
-    overflow: hidden;
 }
 
 

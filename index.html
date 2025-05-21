@@ -97,7 +97,6 @@
             <hr class="sidebar-hr">
 
             <div id="generalActions">
-                <button id="copyPatchPromptBtn" class="action-button utility-button" title="Copy prompt for AI to generate code patches" disabled>COPY PATCH PROMPT</button>
                 <button id="downloadProjectBtn" class="action-button utility-button" disabled title="Download project as ZIP">DOWNLOAD ZIP</button>
                 <button id="clearProjectBtn" class="action-button utility-button" disabled title="Clear all project data">CLEAR PROJECT</button>
             </div>
@@ -134,8 +133,16 @@
                      <div id="aiPatchPanel" class="content-panel">
                         <div class="panel-header"><h2>AI CODE PATCHER (Contextual Anchor Patches)</h2></div>
                         <div class="patch-input-area">
-                            <p>Paste AI-generated CAPCA patch instructions (JSON format) below:</p>
-                            <textarea id="aiPatchInput" rows="6" placeholder='[{"file": "path/file.ext", ...}]'></textarea>
+                            <button id="copyPatchPromptBtn" class="action-button" title="Copy prompt for AI to generate code patches" disabled>COPY PATCH PROMPT</button>
+                            <p style="margin-top: 10px; margin-bottom: 5px; font-size: 0.9em; line-height: 1.5;">
+                                <strong>Workflow to apply AI-generated patches:</strong><br>
+                                1. Click "COPY PATCH PROMPT" above.<br>
+                                2. In your AI chat (e.g., Gemini, Claude, ChatGPT), paste the copied prompt. Then, provide the target file's full path and its current content. You can copy file content from DirAnalyse's editor (Edit ✏️ icon in Combine Mode or Tree View) or use the "Combine Mode" tab to get pre-formatted content of multiple files.<br>
+                                3. Clearly instruct your AI on the changes you want and ask it to generate CAPCA JSON for those changes.<br>
+                                4. Paste the AI's complete JSON array response into the textarea below.<br>
+                                5. Click "Review & Apply Patches" to see a diff and confirm each change.
+                            </p>
+                            <textarea id="aiPatchInput" rows="6" placeholder='e.g., [{"file": "path/to/your/file.ext", "operation": "replace_segment_after_anchor", ...}]'></textarea>
                             <button id="applyAiPatchBtn" class="action-button">Review & Apply Patches</button>
                         </div>
                         <div class="patch-results-area">

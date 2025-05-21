@@ -90,8 +90,7 @@ function populateElements() {
         skipPatchChanges: 'skipPatchChanges',
         cancelAllPatchChanges: 'cancelAllPatchChanges',
         mainActionDiv: 'mainAction',
-        // createAiBriefBtn: 'createAiBriefBtn', // Removed
-        copyPatchPromptBtn: 'copyPatchPromptBtn', // Added
+        copyPatchPromptBtn: 'copyPatchPromptBtn', 
         aiBriefingStudioModal: 'aiBriefingStudioModal',
         closeAiBriefingStudioModal: 'closeAiBriefingStudioModal',
         aiBriefTaskInput: 'aiBriefTaskInput',
@@ -309,8 +308,7 @@ function setupEventListeners() {
     safeAddEventListener(elements.commitSelectionsBtn, 'click', commitSelections, 'commitSelectionsBtn');
     safeAddEventListener(elements.downloadProjectBtn, 'click', zipManager.downloadProjectAsZip, 'downloadProjectBtn');
     safeAddEventListener(elements.clearProjectBtn, 'click', clearProjectData, 'clearProjectBtn');
-    // safeAddEventListener(elements.createAiBriefBtn, 'click', handleCreateAiBrief, 'createAiBriefBtn'); // Removed
-    safeAddEventListener(elements.copyPatchPromptBtn, 'click', handleCopyPatchPrompt, 'copyPatchPromptBtn'); // Added
+    safeAddEventListener(elements.copyPatchPromptBtn, 'click', handleCopyPatchPrompt, 'copyPatchPromptBtn'); 
 
     safeAddEventListener(elements.expandAllBtn, 'click', () => treeView.toggleAllFolders(false), 'expandAllBtn');
     safeAddEventListener(elements.collapseAllBtn, 'click', () => treeView.toggleAllFolders(true), 'collapseAllBtn');
@@ -606,7 +604,7 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
-    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true; // Disabled initially
+    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true;
 
     if (typeof uiManager.activateTab === 'function') {
         uiManager.activateTab('textReportTab'); 
@@ -618,7 +616,7 @@ export function enableUIControls() {
         elements.selectAllBtn, elements.deselectAllBtn, elements.commitSelectionsBtn,
         elements.expandAllBtn, elements.collapseAllBtn,
         elements.downloadProjectBtn, elements.clearProjectBtn, elements.copyReportButton,
-        elements.applyAiPatchBtn, elements.copyPatchPromptBtn // Added copyPatchPromptBtn
+        elements.applyAiPatchBtn, elements.copyPatchPromptBtn
     ];
     buttonsToEnable.forEach(btn => { if (btn) btn.disabled = false; });
 
@@ -646,7 +644,7 @@ function disableUIControls() {
         elements.downloadProjectBtn, elements.clearProjectBtn, elements.copyReportButton,
         elements.copySelectedBtn,
         elements.applyAiPatchBtn,
-        elements.copyPatchPromptBtn // Added copyPatchPromptBtn
+        elements.copyPatchPromptBtn
     ];
     buttonsToDisable.forEach(btn => { if (btn) btn.disabled = true; });
     if(elements.mainViewTabs) elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.disabled = true);
@@ -788,7 +786,7 @@ function initApp() {
         elements.visualOutputContainer.style.display = 'none';
     }
     if (elements.treeViewControls) elements.treeViewControls.style.display = 'none';
-    if (elements.generalActions) elements.generalActions.style.display = 'none';
+    if (elements.generalActions) elements.generalActions.style.display = 'flex'; // Keep general actions visible
 
 
     if (elements.mainView) elements.mainView.style.display = 'flex';
