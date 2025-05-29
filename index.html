@@ -43,7 +43,8 @@
         "aiPatcher": "./js/aiPatcher.js",
         "zipManager": "./js/zipManager.js",
         "aiBriefingStudio": "./js/aiBriefingStudio.js",
-        "scaffoldImporter": "./js/scaffoldImporter.js"
+        "scaffoldImporter": "./js/scaffoldImporter.js",
+        "aiDebriefingAssistant": "./js/aiDebriefingAssistant.js"
       }
     }
     </script>
@@ -97,6 +98,8 @@
             <hr class="sidebar-hr">
 
             <div id="generalActions">
+                <button id="aiDebriefingAssistantBtn" class="action-button utility-button" title="Prepare context package for AI collaboration">🚀 AI DEBRIEFING ASSISTANT</button>
+                <hr class="sidebar-hr" style="margin-top: 8px; margin-bottom: 8px;">
                 <button id="downloadProjectBtn" class="action-button utility-button" disabled title="Download project as ZIP">DOWNLOAD ZIP</button>
                 <button id="clearProjectBtn" class="action-button utility-button" disabled title="Clear all project data">CLEAR PROJECT</button>
             </div>
@@ -124,7 +127,7 @@
                         <div class="panel-header"><h2>COMMITTED FILES FOR COMBINING</h2></div>
                         <div id="selectedFilesContainer"><div class="empty-notice">NO FILES IN COMMITTED SELECTION.<br>USE TREE AND 'COMMIT SELECTIONS'.</div></div>
                         <div class="button-container">
-                            <button id="copySelectedBtn" class="action-button" disabled title="Download committed text files as a single .txt file">COPY COMMITTED FILES</button>
+                            <button id="copySelectedBtn" class="action-button" disabled title="Copy committed text files to clipboard">COPY COMMITTED FILES</button>
                         </div>
                     </div>
                 </div>
@@ -197,6 +200,50 @@
              <div id="filePreviewContent" style="height: 100%; width:100%; border: 1px solid var(--border-color);"></div>
         </div>
     </div>
+    
+    <!-- AI Debriefing Assistant Modal -->
+    <div id="aiDebriefingAssistantModal" class="diff-modal" style="display:none;">
+        <div class="diff-modal-content" style="max-width: 750px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom:15px; border-bottom: 1px solid var(--border-color); padding-bottom:10px;">
+                <h3 style="margin:0;">🚀 AI Debriefing Assistant</h3>
+                <span class="diff-modal-close" id="closeAiDebriefingAssistantModalBtn" style="cursor:pointer; font-size:1.5em; line-height:1;">×</span>
+            </div>
+            <div class="modal-scrollable-content" style="flex-grow:1; overflow-y:auto; padding-right:10px;">
+                <p style="margin-top:0;">Project: <strong id="debriefProjectName">N/A</strong></p>
+                
+                <fieldset class="debrief-step">
+                    <legend>Step 1: Refresh Project Metadata</legend>
+                    <p>To ensure the AI has the latest context on issues and milestones, please run your local <code>./update_github_meta.sh</code> script in your project's terminal.</p>
+                    <p>Commands:</p>
+                    <div id="debriefScriptCommands" class="code-block-display" style="margin-bottom:10px;">
+                        <code>cd /path/to/[ProjectName]</code><br>
+                        <code>./update_github_meta.sh</code>
+                    </div>
+                    <label style="display: block; margin-top: 10px;">
+                        <input type="checkbox" id="debriefMetadataCheckbox">
+                        <span id="metadataCheckboxLabel"> I have run the metadata update script for [ProjectName].</span>
+                    </label>
+                </fieldset>
+
+                <fieldset class="debrief-step">
+                    <legend>Step 2: Define Context Scope</legend>
+                    <p>Choose the files and folders to include in the debriefing package.</p>
+                    <button id="useStandardDebriefProfileBtn" class="action-button secondary" style="margin-bottom: 10px; width:auto;">Use Standard Debriefing Profile</button>
+                    <p style="font-size:0.9em; color:var(--dim-color);">Alternatively, adjust selections in the main Directory Tree and ensure they are committed using the "COMMIT" button before proceeding. If "Use Standard Profile" is not clicked, your current committed selections will be used.</p>
+                </fieldset>
+
+                <fieldset class="debrief-step">
+                    <legend>Step 3: Assemble & Copy</legend>
+                    <p>This will gather the specified documents, generate a tree report and combined code for the selected scope, and copy the complete package to your clipboard.</p>
+                </fieldset>
+            </div>
+            <div class="diff-modal-actions" style="margin-top:15px; padding-top:15px; border-top: 1px solid var(--border-color);">
+                <button id="assembleDebriefPackageBtn" class="action-button" disabled>Assemble & Copy Debriefing Package</button>
+                <button id="cancelAiDebriefBtn" class="action-button secondary">Cancel</button> <!-- Reusing close logic -->
+            </div>
+        </div>
+    </div>
+
 
     <div id="aiBriefingStudioModal" class="diff-modal" style="display:none;">
         <div class="diff-modal-content">

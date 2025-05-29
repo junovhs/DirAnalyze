@@ -14,6 +14,8 @@ import * as utils from './utils.js';
 import * as aiBriefingStudio from './aiBriefingStudio.js';
 import * as scaffoldImporter from './scaffoldImporter.js';
 import * as sidebarResizer from './sidebarResizer.js';
+import * as aiDebriefingAssistant from './aiDebriefingAssistant.js';
+
 
 export const appState = {
     activeTabId: 'textReportTab',
@@ -112,6 +114,14 @@ function populateElements() {
         textReportTab: 'textReportTab',
         combineModeTab: 'combineModeTab',
         aiPatcherTab: 'aiPatcherTab',
+        aiDebriefingAssistantBtn: 'aiDebriefingAssistantBtn',
+        aiDebriefingAssistantModal: 'aiDebriefingAssistantModal',
+        closeAiDebriefingAssistantModalBtn: 'closeAiDebriefingAssistantModalBtn',
+        debriefMetadataCheckbox: 'debriefMetadataCheckbox',
+        assembleDebriefPackageBtn: 'assembleDebriefPackageBtn',
+        useStandardDebriefProfileBtn: 'useStandardDebriefProfileBtn',
+        // Note: debriefProjectName, metadataCheckboxLabel, debriefScriptCommands are inside the modal,
+        // their direct references in `elements` might not be needed if aiDebriefingAssistant.js handles them.
     };
 
     for (const key in elementIds) {
@@ -323,6 +333,15 @@ function setupEventListeners() {
     safeAddEventListener(elements.copyReportButton, 'click', copyReport, 'copyReportButton');
     safeAddEventListener(elements.copySelectedBtn, 'click', combineMode.copySelectedFiles, 'copySelectedBtn');
     safeAddEventListener(elements.copyScaffoldPromptBtn, 'click', handleCopyScaffoldPrompt, 'copyScaffoldPromptBtn');
+    
+    // Event listener for AI Debriefing Assistant button is now handled within aiDebriefingAssistant.js's init function
+    // if elements.aiDebriefingAssistantBtn is available when that init runs.
+    // For cancel button in the new modal:
+    const cancelDebriefBtn = document.getElementById('cancelAiDebriefBtn'); // Get it directly as it's specific
+    if (cancelDebriefBtn && elements.closeAiDebriefingAssistantModalBtn) {
+         // Make "Cancel" behave like "Close X"
+        cancelDebriefBtn.addEventListener('click', () => elements.closeAiDebriefingAssistantModalBtn.click());
+    }
 }
 
 function handleDragOver(e) { e.preventDefault(); if (elements.dropZone) elements.dropZone.classList.add('dragover'); }
@@ -569,7 +588,8 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
 
     const modalsToHide = [
         elements.aiBriefingStudioModal, elements.scaffoldImportModal,
-        elements.aiPatchDiffModal, elements.filePreview, elements.errorReport
+        elements.aiPatchDiffModal, elements.filePreview, elements.errorReport,
+        elements.aiDebriefingAssistantModal // Add new modal here
     ];
     modalsToHide.forEach(panel => { if (panel && panel.style) panel.style.display = 'none'; });
 
@@ -605,6 +625,8 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
     if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true;
+    if (elements.aiDebriefingAssistantBtn) elements.aiDebriefingAssistantBtn.disabled = true;
+
 
     if (typeof uiManager.activateTab === 'function') {
         uiManager.activateTab('textReportTab'); 
@@ -616,9 +638,9 @@ export function enableUIControls() {
         elements.selectAllBtn, elements.deselectAllBtn, elements.commitSelectionsBtn,
         elements.expandAllBtn, elements.collapseAllBtn,
         elements.downloadProjectBtn, elements.clearProjectBtn, elements.copyReportButton,
-        elements.applyAiPatchBtn, elements.copyPatchPromptBtn
+        elements.applyAiPatchBtn, elements.copyPatchPromptBtn, elements.aiDebriefingAssistantBtn
     ];
-    buttonsToEnable.forEach(btn => { if (btn) btn.disabled = false; });
+    buttonsToEnable.forEach(btn => { if (btn) btn.disabled = !appState.fullScanData; }); // Disable if no fullScanData
 
     if (elements.importAiScaffoldBtn) {
         elements.importAiScaffoldBtn.disabled = appState.processingInProgress;
@@ -629,12 +651,20 @@ export function enableUIControls() {
     if (elements.copySelectedBtn) {
         const currentTabIsCombine = document.querySelector('.tab-button[data-tab="combineModeTab"]')?.classList.contains('active');
         const textFilesInCommitted = appState.committedScanData?.allFilesList.some(f => utils.isLikelyTextFile(f.path));
-        elements.copySelectedBtn.disabled = !(currentTabIsCombine && appState.selectionCommitted && textFilesInCommitted);
+        elements.copySelectedBtn.disabled = !(currentTabIsCombine && appState.selectionCommitted && textFilesInCommitted && appState.fullScanData);
     }
-     if (elements.clearProjectBtn) {
+     if (elements.clearProjectBtn) { // Already in buttonsToEnable, but this specific logic is fine
         elements.clearProjectBtn.disabled = !appState.fullScanData;
     }
     if(elements.mainViewTabs) elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.disabled = !appState.fullScanData);
+
+    // Specific for commit button: disable if no fullScanData
+    if (elements.commitSelectionsBtn) {
+        elements.commitSelectionsBtn.disabled = !appState.fullScanData;
+    }
+     if (elements.copyReportButton) { // Already in buttonsToEnable
+        elements.copyReportButton.disabled = !appState.fullScanData;
+    }
 }
 
 function disableUIControls() {
@@ -644,7 +674,8 @@ function disableUIControls() {
         elements.downloadProjectBtn, elements.clearProjectBtn, elements.copyReportButton,
         elements.copySelectedBtn,
         elements.applyAiPatchBtn,
-        elements.copyPatchPromptBtn
+        elements.copyPatchPromptBtn,
+        elements.aiDebriefingAssistantBtn
     ];
     buttonsToDisable.forEach(btn => { if (btn) btn.disabled = true; });
     if(elements.mainViewTabs) elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.disabled = true);
@@ -675,6 +706,8 @@ function showFailedUI(message = "SCAN FAILED - SEE ERROR REPORT") {
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true;
+    if (elements.aiDebriefingAssistantBtn) elements.aiDebriefingAssistantBtn.disabled = true;
+
 
 
     if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'flex';
@@ -752,6 +785,7 @@ function clearProjectData() {
     if(elements.loader) elements.loader.classList.remove('visible');
     if(elements.mainActionDiv && elements.mainActionDiv.style) elements.mainActionDiv.style.display = 'flex';
     if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true; 
+    if (elements.aiDebriefingAssistantBtn) elements.aiDebriefingAssistantBtn.disabled = true;
 }
 
 function copyReport() {
@@ -771,6 +805,7 @@ function initApp() {
     aiPatcher.initAiPatcher();
     aiBriefingStudio.initAiBriefingStudio();
     scaffoldImporter.initScaffoldImporter();
+    aiDebriefingAssistant.initAiDebriefingAssistant(); // Initialize new module
     uiManager.initTabs(); 
     sidebarResizer.initResizer(elements.leftSidebar, elements.sidebarResizer, elements.mainView);
 
@@ -813,7 +848,8 @@ function initApp() {
 
     const modalsToHideOnInit = [
         elements.filePreview, elements.errorReport,
-        elements.aiPatchDiffModal, elements.aiBriefingStudioModal, elements.scaffoldImportModal
+        elements.aiPatchDiffModal, elements.aiBriefingStudioModal, elements.scaffoldImportModal,
+        elements.aiDebriefingAssistantModal // Add new modal here
     ];
     modalsToHideOnInit.forEach(panel => { if (panel && panel.style) panel.style.display = 'none'; });
 
@@ -826,6 +862,7 @@ function initApp() {
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
     if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true;
+    if (elements.aiDebriefingAssistantBtn) elements.aiDebriefingAssistantBtn.disabled = true; // Disabled until project loaded
 
 
     setupEventListeners();

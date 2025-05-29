@@ -1,254 +1,268 @@
-// --- FILE: js/fileEditor.js --- //
-import { appState, elements } from './main.js';
-import * as fileSystem from 'fileSystem';
-import * as notificationSystem from 'notificationSystem';
-import * as errorHandler from 'errorHandler';
-import { getFileExtension } from './utils.js';
-import * as uiManager from 'uiManager'; // Import uiManager
+// --- FILE: diranalyze/js/fileEditor.js --- //
+import { appState, elements, resetUIForProcessing, enableUIControls } from './main.js';
+import * as fileSystem from './fileSystem.js';
+import * as notificationSystem from './notificationSystem.js';
+import * as errorHandler from './errorHandler.js';
+import { getFileExtension } from './utils.js'; // For CodeMirror mode detection
 
-const editedFiles = new Map();
-let cmOnChangeHandler = null;
+const editedFiles = new Map(); // Stores { path: { content: "...", originalContent: "...", savedInSession: false, isPatched: false } }
 
+// Function to get CodeMirror mode based on file extension
 function getCodeMirrorMode(filePath) {
     const extension = getFileExtension(filePath);
     switch (extension) {
         case '.js': case '.mjs': case '.json': return { name: "javascript", json: extension === '.json' };
         case '.ts': case '.tsx': return "text/typescript";
         case '.css': return "text/css";
-        case '.html': case '.htm': case '.xml': return "htmlmixed";
+        case '.html': case '.htm': case '.xml': return "htmlmixed"; // Ensure xml is handled by htmlmixed or xml mode directly
         case '.md': return "text/markdown";
         case '.py': return "text/x-python";
         case '.java': return "text/x-java";
-        case '.c': case '.h': case '.cpp': case '.hpp': return "text/x-c++src";
-        case '.cs': return "text/x-csharp";
-        default: return "text/plain";
+        case '.c': case '.h': case '.cpp': case '.hpp': return "text/x-c++src"; // For C and C++
+        case '.cs': return "text/x-csharp"; // For C#
+        // Add more language modes as needed
+        default: return "text/plain"; // Fallback for unknown types
     }
 }
 
 export function initFileEditor() {
-    if (typeof CodeMirror !== 'undefined') {
-        appState.editorInstance = CodeMirror(elements.editorContent, {
-            lineNumbers: true,
-            theme: "material-darker",
-            mode: "text/plain",
-            gutters: ["CodeMirror-linenumbers"],
-            autoCloseBrackets: true,
-            matchBrackets: true,
-            styleActiveLine: true,
-        });
-
-        cmOnChangeHandler = (cmInstance, changeObj) => {
-            if (changeObj.origin === 'setValue' && appState.isLoadingFileContent) {
-                return;
-            }
-            if (appState.currentEditingFile) {
-                const fileState = editedFiles.get(appState.currentEditingFile.path) || { content: '', isPatched: false, savedInSession: false };
-                editedFiles.set(appState.currentEditingFile.path, {
-                    ...fileState,
-                    content: cmInstance.getValue(),
-                    savedInSession: false
-                });
-                setEditorStatus('unsaved');
-            }
-        };
-
-        appState.editorInstance.on('change', cmOnChangeHandler);
-        appState.editorInstance.setOption("extraKeys", {
-            "Ctrl-S": function(cm) { saveFileChanges(); },
-            "Cmd-S": function(cm) { saveFileChanges(); }
-        });
-
-    } else {
-        console.error("CodeMirror library not loaded. File editor will not function correctly.");
-        elements.editorContent.textContent = "Error: Code editor library not loaded.";
+    if (elements.saveEditorBtn) {
+        elements.saveEditorBtn.addEventListener('click', saveCurrentFile);
     }
-
-    elements.saveEditorBtn.addEventListener('click', saveFileChanges);
-    elements.closeEditorBtn.addEventListener('click', closeEditor);
+    if (elements.closeEditorBtn) {
+        elements.closeEditorBtn.addEventListener('click', closeEditor);
+    }
+     console.log("File Editor Initialized.");
 }
 
-export async function openFileInEditor(file) {
-    console.log(`[FileEditor] Attempting to open: ${file.path}, Type: ${file.entryHandle ? 'Existing File' : 'New/Virtual File'}`);
+export async function openFileInEditor(fileData) {
+    if (appState.isLoadingFileContent) return;
     appState.isLoadingFileContent = true;
+    setEditorStatus('loading');
 
     try {
-        // Store previous tab and hide tab view
-        if (!appState.editorActiveAsMainView) { // Only store if not already in editor view
-            appState.previousActiveTabId = appState.activeTabId;
-        }
-        appState.editorActiveAsMainView = true;
-        if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'none';
-        if (elements.tabContentArea) elements.tabContentArea.style.display = 'none';
-        if (elements.fileEditor) elements.fileEditor.style.display = 'flex';
+        const filePath = fileData.path;
+        let contentToLoad;
+        let originalContentForComparison;
 
-
-        appState.currentEditingFile = file;
-        setEditorStatus('loading');
-        elements.editorFileTitle.textContent = `EDITING: ${file.name}`;
-        elements.editorInfo.textContent = `Path: ${file.path}`;
-        // elements.fileEditor.style.display = 'flex'; // Already handled above
-
-        if (appState.editorInstance) {
-            appState.editorInstance.setValue('Loading file...');
+        if (editedFiles.has(filePath)) {
+            contentToLoad = editedFiles.get(filePath).content;
+            originalContentForComparison = editedFiles.get(filePath).originalContent;
         } else {
-            elements.editorContent.textContent = 'Loading file...';
-        }
-
-        let contentToLoad = "// Content not loaded //";
-        let statusToSet = 'error';
-
-        if (editedFiles.has(file.path)) {
-            const fileState = editedFiles.get(file.path);
-            contentToLoad = fileState.content;
-            if (fileState.savedInSession) {
-                statusToSet = fileState.isPatched ? 'patched_saved' : 'saved';
-            } else {
-                if (file.entryHandle) {
-                    const originalContent = await fileSystem.readFileContent(file.entryHandle, file.path, true);
-                    if (contentToLoad === originalContent && !fileState.isPatched) {
-                        statusToSet = 'unchanged';
-                    } else {
-                        statusToSet = fileState.isPatched ? 'patched_unsaved' : 'unsaved';
-                    }
-                } else {
-                    statusToSet = fileState.isPatched ? 'patched_unsaved' : 'unsaved';
-                }
+            if (!fileData.entryHandle) {
+                // This might be a newly created (scaffolded) file not yet saved to an entryHandle
+                // Or an error state. For now, assume it's new and has no original disk content.
+                // This case should be handled carefully if we allow opening "virtual" files.
+                // For the debriefing context, this file likely doesn't exist on disk if no entryHandle.
+                setEditorStatus('error', `File ${filePath} has no handle and is not cached.`);
+                notificationSystem.showNotification(`Error: Cannot open ${filePath}. No file handle and not in cache.`, {duration: 3000});
+                appState.isLoadingFileContent = false;
+                return;
             }
-        } else if (file.entryHandle) {
-            contentToLoad = await fileSystem.readFileContent(file.entryHandle, file.path, true);
-            editedFiles.set(file.path, {
-                content: contentToLoad,
-                isPatched: false,
-                savedInSession: false
+            contentToLoad = await fileSystem.readFileContent(fileData.entryHandle, filePath, true); // force original for first load
+            originalContentForComparison = contentToLoad;
+            editedFiles.set(filePath, { 
+                content: contentToLoad, 
+                originalContent: originalContentForComparison, 
+                savedInSession: true, // Mark as "saved" initially as it matches disk
+                isPatched: false 
             });
-            statusToSet = 'unchanged';
+        }
+        
+        appState.currentEditingFile = { ...fileData, originalContent: originalContentForComparison };
+
+        if (!appState.editorInstance) {
+            appState.editorInstance = CodeMirror(elements.editorContent, {
+                value: contentToLoad,
+                mode: getCodeMirrorMode(filePath),
+                lineNumbers: true,
+                theme: "material-darker",
+                autoCloseBrackets: true,
+                matchBrackets: true,
+                styleActiveLine: true,
+                lineWrapping: true,
+            });
+            appState.editorInstance.on("change", handleEditorChange);
         } else {
-            contentToLoad = `// Error: Could not load content for new file ${file.path}.`;
-            statusToSet = 'error';
-            errorHandler.showError({
-                name: "FileOpenConsistencyError",
-                message: `Could not load content for ${file.path}. New file missing.`
-            });
+            appState.editorInstance.off("change", handleEditorChange); // Remove old listener
+            appState.editorInstance.setValue(contentToLoad);
+            appState.editorInstance.setOption("mode", getCodeMirrorMode(filePath));
+            appState.editorInstance.on("change", handleEditorChange); // Add new listener
         }
 
-        if (appState.editorInstance) {
-            appState.editorInstance.setValue(contentToLoad || "// Error: Content empty.");
-            const mode = getCodeMirrorMode(file.path);
-            appState.editorInstance.setOption("mode", mode);
-            setTimeout(() => {
-                if (elements.fileEditor.style.display === 'flex' && appState.editorInstance) {
-                    appState.editorInstance.refresh();
-                    appState.editorInstance.focus();
-                }
-            }, 50); // Adjusted timeout for safety
+        elements.editorFileTitle.textContent = `EDITING: ${filePath}`;
+        
+        // Determine status after loading
+        const currentFileState = editedFiles.get(filePath);
+        if (currentFileState.savedInSession) {
+            setEditorStatus(currentFileState.isPatched ? 'patched_saved' : 'saved');
+        } else {
+            setEditorStatus('unsaved'); // Should be unsaved if content differs or not savedInSession
         }
-        setEditorStatus(statusToSet);
+
+        if (elements.editorInfo) {
+            elements.editorInfo.textContent = `Size: ${utils.formatBytes(contentToLoad.length)} | Mode: ${appState.editorInstance.getOption("mode").name || appState.editorInstance.getOption("mode")}`;
+        }
+
+        // Switch view to editor
+        if (elements.mainViewTabs && elements.tabContentArea && elements.fileEditor) {
+            appState.previousActiveTabId = appState.activeTabId;
+            elements.mainViewTabs.style.display = 'none';
+            elements.tabContentArea.style.display = 'none';
+            elements.fileEditor.style.display = 'flex';
+            appState.editorActiveAsMainView = true;
+        }
+        setTimeout(() => appState.editorInstance.refresh(), 10);
+
 
     } catch (err) {
-        console.error(`[FileEditor] Error in openFileInEditor for '${file.path}':`, err);
-        setEditorStatus('error', err.message);
-        if (appState.editorInstance) appState.editorInstance.setValue(`Error loading file: ${err.message}`);
+        console.error(`Error opening file ${fileData.path}:`, err);
+        setEditorStatus('error', `Error: ${err.message}`);
         errorHandler.showError({
             name: err.name || "FileOpenError",
-            message: `Failed to open file: ${file.name || file.path}. ${err.message}`,
-            stack: err.stack, cause: err, path: file.path
+            message: `Failed to open file: ${fileData.path}. ${err.message}`,
+            stack: err.stack,
+            cause: err
         });
-        // If opening fails critically, restore tab view
-        closeEditor();
     } finally {
         appState.isLoadingFileContent = false;
     }
 }
 
+function handleEditorChange(cmInstance) {
+    if (!appState.currentEditingFile) return;
+    const filePath = appState.currentEditingFile.path;
+    const newContent = cmInstance.getValue();
+    const fileState = editedFiles.get(filePath);
 
-function saveFileChanges() {
+    if (fileState) {
+        fileState.content = newContent;
+        fileState.savedInSession = false; // Mark as unsaved due to change
+        editedFiles.set(filePath, fileState);
+    } else {
+        // This case should ideally not happen if openFileInEditor initializes the map entry
+        editedFiles.set(filePath, {
+            content: newContent,
+            originalContent: appState.currentEditingFile.originalContent, // Stored during open
+            savedInSession: false,
+            isPatched: false
+        });
+    }
+    setEditorStatus('unsaved');
+}
+
+export function saveCurrentFile() {
     if (!appState.currentEditingFile || !appState.editorInstance) return;
 
     const filePath = appState.currentEditingFile.path;
-    const currentEditorContent = appState.editorInstance.getValue();
-
-    const fileState = editedFiles.get(filePath) || { isPatched: false };
-    editedFiles.set(filePath, {
-        content: currentEditorContent,
-        isPatched: fileState.isPatched,
-        savedInSession: true
-    });
-
-    setEditorStatus(fileState.isPatched ? 'patched_saved' : 'saved');
-    notificationSystem.showNotification(`Changes for ${appState.currentEditingFile.name} confirmed in browser memory.`);
+    const currentContent = appState.editorInstance.getValue();
+    
+    const fileState = editedFiles.get(filePath);
+    if (fileState) {
+        fileState.content = currentContent;
+        fileState.savedInSession = true; 
+        // Note: 'isPatched' status is preserved. Saving doesn't unpatch.
+        // 'originalContent' remains the content from the disk when first loaded or last 'true' save.
+        editedFiles.set(filePath, fileState);
+        setEditorStatus(fileState.isPatched ? 'patched_saved' : 'saved');
+        notificationSystem.showNotification(`${filePath} saved (in browser session).`);
+    } else {
+        // Should not happen
+        errorHandler.showError({name: "SaveError", message: `No file state found for ${filePath} during save.`});
+    }
 }
 
-function closeEditor() {
-    if (elements.fileEditor) elements.fileEditor.style.display = 'none';
-    if (appState.editorInstance) appState.editorInstance.setValue(''); // Clear editor content
-
+export function closeEditor() {
+    if (elements.mainViewTabs && elements.tabContentArea && elements.fileEditor) {
+        elements.fileEditor.style.display = 'none';
+        elements.mainViewTabs.style.display = 'flex';
+        elements.tabContentArea.style.display = 'flex';
+        appState.editorActiveAsMainView = false;
+        
+        if (appState.previousActiveTabId) {
+            uiManager.activateTab(appState.previousActiveTabId);
+            appState.previousActiveTabId = null;
+        } else {
+            uiManager.activateTab('textReportTab'); // Default fallback
+        }
+        
+        // Potentially refresh UI if closing editor might affect other views
+        if (typeof uiManager.refreshAllUI === 'function') {
+            uiManager.refreshAllUI();
+        }
+    }
     appState.currentEditingFile = null;
-    appState.editorActiveAsMainView = false;
-
-    // Restore tab view
-    if (elements.mainViewTabs) elements.mainViewTabs.style.display = 'flex';
-    if (elements.tabContentArea) elements.tabContentArea.style.display = 'flex'; // Re-show the container
-
-    // Activate the previously active tab, or default to textReportTab
-    uiManager.activateTab(appState.previousActiveTabId || 'textReportTab');
-    appState.previousActiveTabId = null; // Clear stored previous tab
+    // Do not clear editorInstance.setValue('') here, as it might be slow if editor is complex.
+    // It will be repopulated on next open.
 }
 
 export function setEditorStatus(statusKey, message = '') {
-    const statusEl = elements.editorStatus;
-    statusEl.className = 'editor-status'; // Reset classes
-
-    let textContent = '';
-    let disableSave = true;
-
-    switch (statusKey) {
-        case 'loading': textContent = 'LOADING...'; statusEl.classList.add(`status-loading`); break;
-        case 'unchanged': textContent = 'UNCHANGED'; statusEl.classList.add(`status-unchanged`); disableSave = true; break;
-        case 'unsaved':
-            const currentFile = appState.currentEditingFile ? editedFiles.get(appState.currentEditingFile.path) : null;
-            textContent = (currentFile && currentFile.isPatched && !currentFile.savedInSession) ? 'PATCHED (Unsaved)' : 'UNSAVED (Manual)';
-            statusEl.classList.add(`status-unsaved`); disableSave = false; break;
-        case 'saved': textContent = 'SAVED (Manual)'; statusEl.classList.add(`status-saved`); disableSave = true; break;
-        case 'patched_unsaved': textContent = 'PATCHED (Unsaved)'; statusEl.classList.add(`status-unsaved`); disableSave = false; break;
-        case 'patched_saved': textContent = 'PATCHED (Saved)'; statusEl.classList.add(`status-saved`); disableSave = true; break;
-        case 'error': textContent = `ERROR: ${message}`; statusEl.classList.add(`status-error`); break;
-        default: textContent = statusKey;
+    if (!elements.editorStatus) return;
+    const statusMap = {
+        'saved': { text: 'SAVED (In Session)', class: 'status-saved' },
+        'patched_saved': { text: 'PATCHED & SAVED', class: 'status-saved' },
+        'unsaved': { text: 'UNSAVED CHANGES', class: 'status-unsaved' },
+        'loading': { text: 'LOADING...', class: 'status-loading' },
+        'error': { text: message || 'ERROR', class: 'status-error' },
+        'unchanged': { text: 'NO CHANGES', class: 'status-unchanged' }
+    };
+    elements.editorStatus.className = 'editor-status'; // Reset classes
+    if (statusMap[statusKey]) {
+        elements.editorStatus.textContent = statusMap[statusKey].text;
+        elements.editorStatus.classList.add(statusMap[statusKey].class);
+    } else {
+        elements.editorStatus.textContent = message || statusKey;
     }
-    statusEl.textContent = textContent;
-    elements.saveEditorBtn.disabled = disableSave;
 }
 
+
+// --- Functions for external modules to query/update edited content ---
 export function hasEditedContent(filePath) {
-    return editedFiles.has(filePath);
+    const fileState = editedFiles.get(filePath);
+    // Considered "edited" if it's in the map and not marked as 'savedInSession'
+    // OR if its content differs from its originalContent (more robust for unsaved state)
+    return fileState ? (!fileState.savedInSession || fileState.content !== fileState.originalContent) : false;
 }
 
 export function getEditedContent(filePath) {
     return editedFiles.get(filePath)?.content;
 }
 
-export function getAllEditedFiles() {
-    return editedFiles;
+export function isPatched(filePath) {
+    return editedFiles.get(filePath)?.isPatched || false;
 }
 
-export function setEditedContent(filePath, content, wasPatched = false) {
-    const existingState = editedFiles.get(filePath) || {};
+export function updateFileInEditorCache(filePath, newContent, originalContentIfKnown, isPatchedStatus = false) {
     editedFiles.set(filePath, {
-        content: content,
-        isPatched: existingState.isPatched || wasPatched,
-        savedInSession: false // New content or patch means it's unsaved relative to this action
+        content: newContent,
+        originalContent: originalContentIfKnown !== undefined ? originalContentIfKnown : (editedFiles.get(filePath)?.originalContent || newContent),
+        savedInSession: false, // Marking as unsaved since content is updated externally
+        isPatched: isPatchedStatus
     });
 
-    // If this file is currently being edited, update the live editor instance
+    // If this file is currently open in the editor, update the editor instance
     if (appState.currentEditingFile && appState.currentEditingFile.path === filePath && appState.editorInstance) {
-        appState.isLoadingFileContent = true; // Prevent CM change handler during this setValue
-        appState.editorInstance.setValue(content);
-        appState.editorInstance.setOption("mode", getCodeMirrorMode(filePath));
-        appState.isLoadingFileContent = false;
-        setEditorStatus(wasPatched ? 'patched_unsaved' : 'unsaved'); // Reflect new state
+        const cursorPos = appState.editorInstance.getCursor();
+        appState.editorInstance.setValue(newContent);
+        appState.editorInstance.setCursor(cursorPos); // Try to restore cursor
+        setEditorStatus(isPatchedStatus ? 'patched_saved' : 'unsaved'); // Reflect patched status
     }
 }
 
-export function isPatched(filePath) {
-    return editedFiles.get(filePath)?.isPatched || false;
+export function getAllEditedFiles() {
+    return editedFiles; // Expose the map for modules like main.js (reset) or zipManager
+}
+
+// When a project is cleared, clear the editor cache
+export function clearEditedFilesCache() {
+    editedFiles.clear();
+    if (appState.editorInstance && appState.currentEditingFile) {
+        // If editor was active, best to close it or reset its state
+        // For simplicity, if project clears, we can simulate closing the editor
+        //elements.editorFileTitle.textContent = "FILE EDITOR";
+        //appState.editorInstance.setValue("");
+        //setEditorStatus('unchanged');
+    }
+    // appState.currentEditingFile = null; // Done in main.js reset usually
 }
 // --- ENDFILE: js/fileEditor.js --- //

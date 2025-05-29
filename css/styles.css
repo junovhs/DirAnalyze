@@ -712,6 +712,80 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
 #pageLoader video { width:150px; height:150px; margin-bottom:15px; }
 #pageLoader p { font-size:1.1em; color:var(--text-color); }
 
+/* AI Debriefing Assistant Modal Styles */
+#aiDebriefingAssistantModal .diff-modal-content {
+    max-width: 750px; 
+}
+
+.debrief-step {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-small);
+    padding: 10px 15px;
+    margin-bottom: 15px;
+    background-color: var(--bg-color); 
+}
+
+.debrief-step legend {
+    font-weight: 500;
+    padding: 0 5px;
+    color: var(--text-color);
+}
+
+.debrief-step p {
+    margin-top: 5px;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+.code-block-display {
+    background-color: var(--highlight-bg);
+    padding: 8px 12px;
+    border-radius: var(--border-radius-small);
+    font-family: var(--font-main);
+    font-size: 0.85em;
+    line-height: 1.6;
+    border: 1px solid var(--border-color);
+}
+.code-block-display code {
+    display: block;
+}
+
+#aiDebriefingAssistantModal .action-button.secondary {
+    background-color: var(--highlight-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+#aiDebriefingAssistantModal .action-button.secondary:hover:not(:disabled) {
+    background-color: var(--border-color);
+}
+
+/* Style for the active standard profile button */
+#aiDebriefingAssistantModal .action-button.secondary.active-profile {
+    background-color: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+    font-weight: bold;
+}
+#aiDebriefingAssistantModal .action-button.secondary.active-profile:hover:not(:disabled) {
+    background-color: #0056b3; /* A darker shade of accent for hover */
+}
+
+
+/* Ensure responsive behavior for the new modal if needed */
+@media (max-width: 768px) {
+    #aiDebriefingAssistantModal .diff-modal-content {
+        width: 95vw !important;
+        max-width: 95vw !important;
+    }
+    .debrief-step {
+        padding: 8px 10px;
+    }
+    .debrief-step p {
+        font-size: 0.85em;
+    }
+}
+
+
 @media (max-width: 1100px) {
     #appContainer {
         flex-direction: column;
