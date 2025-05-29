@@ -150,5 +150,5 @@ MIT for core source.  Thirdâ€‘party CLI tools are under their original licensesâ
 
 For details on our development process, Git conventions, and project roadmap, please see the following documents in the `/docs` folder:
 
-*   [**Git Conventions (`docs/GIT_CONVENTIONS.md`)**](./docs/GIT_CONVENTIONS.md): Guidelines for commit messages, branching, and pull requests. Essential for contributors and for AI-assisted commit generation.
-*   [**Project Roadmap (`docs/ROADMAP.MD`)**](./docs/ROADMAP.md): A detailed outline of planned features and development milestones.
+*   [**Git Conventions (`docs/git_conventions.md`)**](./docs/git_conventions.md): Guidelines for commit messages, branching, and pull requests. Essential for contributors and for AI-assisted commit generation.
+*   [**Project Roadmap (`docs/roadmap.md`)**](./docs/roadmap.md): A detailed outline of planned features and development milestones.
