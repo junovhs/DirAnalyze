@@ -66,7 +66,7 @@ It runs on Windows 10+, macOS 13+, and most modern Linux distros—no installers
 
 ## 3  Quick start
 
-```bash
+```
 # 1. clone
 $ git clone https://github.com/<you>/diranalyze.git && cd diranalyze
 
