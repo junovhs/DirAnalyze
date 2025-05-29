@@ -8,13 +8,13 @@ We follow the **Conventional Commits** specification (v1.0.0). This makes commit
 
 ### Format:
 
-\`\`\`
+```` ``` ````
 <type>(<scope>): <subject>
 <BLANK LINE>
 <body>
 <BLANK LINE>
 <footer>
-\`\`\`
+```` ``` ````
 
 **`<type>`:** Must be one of the following:
 *   **feat:** A new feature (user-facing).
@@ -50,24 +50,24 @@ Examples: `parser`, `ui`, `treeView`, `aiPatcher`, `deps`, `readme`.
 
 ### Examples:
 
-\`\`\`
+```` ``` ````
 feat(lang): add polish language
-\`\`\`
+```` ``` ````
 
-\`\`\`
+```` ``` ````
 fix(css): correct styles for left sidebar resizer
 
 The resizer was previously overlapping content. This commit adjusts
 its z-index and ensures proper flex behavior in the app container.
 Closes #42
-\`\`\`
+```` ``` ````
 
-\`\`\`
+```` ``` ````
 refactor(fileSystem): simplify processDirectoryEntryRecursive logic
 
 BREAKING CHANGE: The \`parentAggregator\` parameter is now mandatory
 and expects a different structure. See docs for migration.
-\`\`\`
+```` ``` ````
 
 ## 2. Branching Strategy
 
