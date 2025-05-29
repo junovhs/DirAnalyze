@@ -11,32 +11,36 @@ DirAnalyze aims to be a **single-binary development station** that lets you:
 *   Keep a deterministic, hash-logged record of every action.
 
 ## Current Status (as of 2025-05-29)
-`v0.2-alpha` – Solid for static-web, Zig and C projects. Windows-GUI spawn, Python runner, and iOS device sideload are in active development. Other features are experimental and off by default.
+`v0.2.1-alpha` – Solid for static-web, Zig and C projects. AI Debriefing Assistant for AI context packaging implemented. Windows-GUI spawn, Python runner, and iOS device sideload are in active development. Other features are experimental and off by default.
 
 ## Feature Matrix & Targets
 
-| Feature                   | v0.2-alpha (Current) | v0.3 (Target Q4 2025) | Notes                                   |
-| ------------------------- | -------------------- | --------------------- | --------------------------------------- |
-| LLM Key Integration (UI)  | ✅                    | —                     | Stored in local config.                 |
-| FTS + Embedding Ranker    | ✅                    | Improving             | Uses MiniLM-L6; swappable.              |
-| Git Commit Helper         | ✅                    | UI Polish             | Simple add/commit/tag.                  |
-| **Zig / C / Web** runners | ✅                    | —                     | Build via `zig cc` or `emrun` for WASM. |
-| Windows-GUI Spawn         | 🔄 In Development   | ✅                    | No capture yet.                         |
-| Python Runner             | 🔄 In Development   | ✅                    | System `python3`; embed later.          |
-| iOS Device Sideload       | 🔄 In Development   | Beta                  | Needs libimobiledevice.                 |
-| Screen Capture            | ❌ Not Implemented   | Experimental          | ffmpeg / BitBlt; opt-in.                |
-| Holoform Graph Index      | ❌ Not Implemented   | Experimental          | Off by default.                         |
-| Cross-OS Sandboxing       | ❌ Research Phase    | Research              | Future cgroup/jobobject.                |
+| Feature                   | v0.2.1-alpha (Current) | v0.3 (Target Q4 2025) | Notes                                   |
+| ------------------------- | ---------------------- | --------------------- | --------------------------------------- |
+| LLM Key Integration (UI)  | ✅                      | —                     | Stored in local config.                 |
+| FTS + Embedding Ranker    | ✅                      | Improving             | Uses MiniLM-L6; swappable.              |
+| Git Commit Helper         | ✅                      | UI Polish             | Simple add/commit/tag.                  |
+| **AI Debriefing Assistant** | ✅                    | UI Polish             | Context packaging for AI collaboration. |
+| **Zig / C / Web** runners | ✅                      | —                     | Build via `zig cc` or `emrun` for WASM. |
+| Windows-GUI Spawn         | 🔄 In Development     | ✅                    | No capture yet.                         |
+| Python Runner             | 🔄 In Development     | ✅                    | System `python3`; embed later.          |
+| iOS Device Sideload       | 🔄 In Development     | Beta                  | Needs libimobiledevice.                 |
+| Screen Capture            | ❌ Not Implemented     | Experimental          | ffmpeg / BitBlt; opt-in.                |
+| Holoform Graph Index      | ❌ Not Implemented     | Experimental          | Off by default.                         |
+| Cross-OS Sandboxing       | ❌ Research Phase      | Research              | Future cgroup/jobobject.                |
 
 ## Detailed Roadmap Milestones
 
 ### Core 1.0 (Target: End of 2025)
+*   **AI Debriefing Assistant:** Guided workflow for preparing comprehensive context packages for AI collaboration.
 *   **Stable Runners:** Robust and well-tested runners for Zig, C, and Web projects.
 *   **Windows GUI Interaction:** Reliable spawning and logging for Windows GUI applications.
 *   **Python Integration:** Stable Python runner utilizing the system's Python installation.
 *   **Deterministic Logging v1:** Implementation and validation of the foundational deterministic File System Access Layer (FSAL) log schema.
     *   *Note: Runners invoking external tools (e.g., shell, build systems) are version-pinned but their behavior depends on the OS/hardware environment.*
 *   **Plugin API (Initial):** First design and implementation of an API for external runners.
+*   **UI Polish:** General improvements to UI/UX, including for the Git Commit Helper.
+*   **Ranker Enhancements:** Refinements to FTS + Embedding Ranker.
 
 ### Extended (Target: Q2 2026+)
 *   **iOS Device Runner:** Stable sideloading and syslog streaming for iOS devices.
