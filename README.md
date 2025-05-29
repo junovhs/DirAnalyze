@@ -143,3 +143,10 @@ Requirements: Zig 0.12 nightly or newer.  On Windows, run from PowerShell; on ma
 ## 8  License
 
 MIT for core source.  Third‑party CLI tools are under their original licenses—see `/third_party/`.
+
+## Project Management & Conventions
+
+For details on our development process, Git conventions, and project roadmap, please see the following documents in the `/docs` folder:
+
+*   [**Git Conventions (`docs/GIT_CONVENTIONS.md`)**](./docs/GIT_CONVENTIONS.md): Guidelines for commit messages, branching, and pull requests. Essential for contributors and for AI-assisted commit generation.
+*   [**Project Roadmap (`docs/ROADMAP.MD`)**](./docs/ROADMAP.md): A detailed outline of planned features and development milestones.
