@@ -10,20 +10,22 @@ DirAnalyze aims to be a **single-binary development station** that lets you:
 *   Preview results in your browser or on a tethered device.
 *   Keep a deterministic, hash-logged record of every action.
 
-## Current Status (as of 2025-05-29)
-`v0.2.1-alpha` – Solid for static-web, Zig and C projects. AI Debriefing Assistant for AI context packaging implemented. Windows-GUI spawn, Python runner, and iOS device sideload are in active development. Other features are experimental and off by default.
+## Current Status (as of 2025-05-30)
+```v0.2.1-alpha``` – AI Debriefing Assistant for AI context packaging implemented. Development is active for LLM Key Integration, Zig Runner, C/C++ Runner, Web Project Runner (for preview), Windows‑GUI spawn, Python runner, and iOS device sideload. Other features are experimental and off by default.
 
 ## Feature Matrix & Targets
 
 | Feature                   | v0.2.1-alpha (Current) | v0.3 (Target Q4 2025) | Notes                                   |
 | ------------------------- | ---------------------- | --------------------- | --------------------------------------- |
-| LLM Key Integration (UI)  | ✅                      | —                     | Stored in local config.                 |
+| LLM Key Integration (UI)  | ❌ Not Implemented     | ✅                    | Stored in local config.                 |
 | FTS + Embedding Ranker    | ✅                      | Improving             | Uses MiniLM-L6; swappable.              |
 | Git Commit Helper         | ✅                      | UI Polish             | Simple add/commit/tag.                  |
 | **AI Debriefing Assistant** | ✅                    | UI Polish             | Context packaging for AI collaboration. |
-| **Zig / C / Web** runners | ✅                      | —                     | Build via `zig cc` or `emrun` for WASM. |
+| **Zig Runner**            | 🔄 In Development     | ✅                    | Handles ```zig build```, ```zig test``` etc. |
+| **C/C++ Runner**          | 🔄 In Development     | ✅                    | Build via ```zig cc```.                     |
+| **Web Runner** (preview)  | ❌ Not Implemented     | ✅                    | Serve static files for browser preview. |
 | Windows-GUI Spawn         | 🔄 In Development     | ✅                    | No capture yet.                         |
-| Python Runner             | 🔄 In Development     | ✅                    | System `python3`; embed later.          |
+| Python Runner             | 🔄 In Development     | ✅                    | System ```python3```; embed later.          |
 | iOS Device Sideload       | 🔄 In Development     | Beta                  | Needs libimobiledevice.                 |
 | Screen Capture            | ❌ Not Implemented     | Experimental          | ffmpeg / BitBlt; opt-in.                |
 | Holoform Graph Index      | ❌ Not Implemented     | Experimental          | Off by default.                         |
@@ -32,8 +34,12 @@ DirAnalyze aims to be a **single-binary development station** that lets you:
 ## Detailed Roadmap Milestones
 
 ### Core 1.0 (Target: End of 2025)
+*   **LLM Key Configuration (UI & Backend):** Allow users to input and securely store their LLM API key.
 *   **AI Debriefing Assistant:** Guided workflow for preparing comprehensive context packages for AI collaboration.
-*   **Stable Runners:** Robust and well-tested runners for Zig, C, and Web projects.
+*   **Stable Runners:**
+    *   **Zig Runner:** Robust and well-tested runner for Zig projects (handles build commands, logs output).
+    *   **C/C++ Runner:** Robust and well-tested runner for C/C++ projects (handles build commands, logs output).
+    *   **Web Project Runner:** Ability to serve static web projects for browser preview.
 *   **Windows GUI Interaction:** Reliable spawning and logging for Windows GUI applications.
 *   **Python Integration:** Stable Python runner utilizing the system's Python installation.
 *   **Deterministic Logging v1:** Implementation and validation of the foundational deterministic File System Access Layer (FSAL) log schema.
@@ -53,4 +59,4 @@ DirAnalyze aims to be a **single-binary development station** that lets you:
 *   **Enhanced Security:** Research and implementation of cross-platform resource sandboxing for increased security when running external code and tools.
 
 ---
-*This roadmap is a living document and subject to change based on development progress and priorities. Last updated: 2025-05-29.*
+*This roadmap is a living document and subject to change based on development progress and priorities. Last updated: 2025-05-30.*

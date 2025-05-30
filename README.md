@@ -14,7 +14,7 @@ DirAnalyze is a **single‑binary development station** that lets you:
 
 It runs on Windows 10+, macOS 13+, and most modern Linux distros—no installers, no package managers, no cloud calls except the LLM endpoint you configure.
 
-> **Current status (2025‑05‑29):** `v0.2.1‑alpha` – solid for static‑web, Zig and C projects. AI Debriefing Assistant added. Windows‑GUI spawn, Python runner, and iOS device sideload are in active development. Everything else is marked **experimental** and off by default.
+> **Current status (2025‑05‑30):** ```v0.2.1‑alpha``` – AI Debriefing Assistant added. Development is active for LLM Key Integration, Zig Runner, C/C++ Runner, Web Project Runner (for preview), Windows‑GUI spawn, Python runner, and iOS device sideload. Everything else is marked **experimental** and off by default.
 
 ---
 
@@ -25,16 +25,16 @@ It runs on Windows 10+, macOS 13+, and most modern Linux distros—no installers
 | 15 GB IDE + plugin maze                    | < 5 MB static Zig binary, zero installers.                                |
 | NPM audit hell & CDN outages               | All assets baked into the binary you can hash today and run in 2035.      |
 | LLM context bloat                          | Local index (FTS + embeddings) narrows prompts to ≈ 30 files, not 30 000. |
-| “Copy prompt → paste AI → copy patch” loop | One **/api/action** call per edit; the UI does the plumbing for you.      |
+| “Copy prompt → paste AI → copy patch” loop | One ```/api/action``` call per edit; the UI does the plumbing for you.      |
 | Fear of cloud snooping                     | Runs offline; only your LLM endpoint sees code, and you choose which one. |
 
 ---
 
 ## 1  Design principles
 
-1. **Own the stack** – the repo contains every byte needed to rebuild; external CLIs are version‑pinned in `/third_party/manifest.lock`.
+1. **Own the stack** – the repo contains every byte needed to rebuild; external CLIs are version‑pinned in ```/third_party/manifest.lock```.
 2. **Deterministic log** – every FS write, runner spawn, and LLM prompt/response hash is appended to a SQLite journal so a future run can replay or diff behaviour. *Runners that invoke external tools (e.g., shell, build systems, device tools) are version-pinned but not frozen in behavior. Re-execution may vary depending on OS/hardware environment.*
-3. **Machine‑first interface** – the LLM sends JSON actions like `{ "op": "patch", "path": "src/foo.zig", … }`.  Human UI is a thin viewer.
+3. **Machine‑first interface** – the LLM sends JSON actions like ```{ "op": "patch", "path": "src/foo.zig", … }```.  Human UI is a thin viewer.
 4. **Small surface first, power later** – core runners do only spawn + log; screen capture, simulators, sandboxing, and Holoform graphs are opt‑in experiments.
 5. **Offline by default** – network is used only for the LLM HTTPS target you configure.
 
@@ -78,7 +78,7 @@ $ ./zig-out/bin/diranalyze
 # open http://localhost:8787  (first run prompts for LLM key)
 ```
 
-Requirements: Zig 0.12 nightly or newer.  On Windows, run from PowerShell; on macOS, `codesign --remove-signature` is not needed.
+Requirements: Zig 0.12 nightly or newer.  On Windows, run from PowerShell; on macOS, ```codesign --remove-signature``` is not needed.
 
 ---
 
@@ -86,13 +86,15 @@ Requirements: Zig 0.12 nightly or newer.  On Windows, run from PowerShell; on ma
 
 | Feature                   | v0.2.1‑alpha | v0.3 (target '25‑Q4) | Notes                                   |
 | ------------------------- | ------------ | -------------------- | --------------------------------------- |
-| Paste LLM key (UI)        | ✅            | —                    | Stored in local config.                 |
+| Paste LLM key (UI)        | ❌ dev       | ✅                    | Stored in local config.                 |
 | FTS + embedding ranker    | ✅            | improving            | Uses MiniLM‑L6; can swap.               |
 | Git commit helper         | ✅            | UI polish            | Simple add/commit/tag.                  |
 | **AI Debriefing Assistant** | ✅          | UI Polish            | Context packaging for AI.               |
-| **Zig / C / Web** runners | ✅            | —                    | Build via `zig cc` or `emrun` for WASM. |
+| **Zig Runner**            | 🔄 dev       | ✅                    | Handles ```zig build```, ```zig test``` etc. |
+| **C/C++ Runner**          | 🔄 dev       | ✅                    | Build via ```zig cc```.                     |
+| **Web Runner** (preview)  | ❌ dev       | ✅                    | Serve static files for browser preview. |
 | Windows‑GUI spawn         | 🔄 dev       | ✅                    | No capture yet.                         |
-| Python runner             | 🔄 dev       | ✅                    | System `python3`; embed later.          |
+| Python runner             | 🔄 dev       | ✅                    | System ```python3```; embed later.          |
 | iOS device sideload       | 🔄 dev       | beta                 | Needs libimobiledevice.                 |
 | Screen capture            | ❌            | experimental         | ffmpeg / BitBlt; opt‑in.                |
 | Holoform graph index      | ❌            | experimental         | Off by default.                         |
@@ -100,11 +102,14 @@ Requirements: Zig 0.12 nightly or newer.  On Windows, run from PowerShell; on ma
 
 ---
 
-## 5  Roadmap snapshot (freeze 2025‑05‑29)
+## 5  Roadmap snapshot (freeze 2025‑05‑30)
 
 **Core 1.0 (ship 2025‑12‑31)**
 
-* Stable Zig/C/Web runners
+* LLM Key Configuration (UI & Backend)
+* Stable Zig Runner
+* Stable C/C++ Runner
+* Web Project Runner (preview serving)
 * Windows‑GUI spawn + log
 * Python runner (system)
 * Deterministic FS log schema v1 *Runners that invoke external tools (e.g., shell, build systems, device tools) are version-pinned but not frozen in behavior. Re-execution may vary depending on OS/hardware environment.*
@@ -136,19 +141,19 @@ Requirements: Zig 0.12 nightly or newer.  On Windows, run from PowerShell; on ma
 
 ## 7  Contributing
 
-* Clone → create branch `feat/<topic>` → run `zig build test` → open PR.
+* Clone → create branch ```feat/<topic>``` → run ```zig build test``` → open PR.
 * Keep docs + README in sync; every feature must add a log‑replay test.
-* Experimental features belong behind `--feature <flag>`.
+* Experimental features belong behind ```--feature <flag>```.
 
 ---
 
 ## 8  License
 
-MIT for core source.  Third‑party CLI tools are under their original licenses—see `/third_party/`.
+MIT for core source.  Third‑party CLI tools are under their original licenses—see ```/third_party/```.
 
 ## Project Management & Conventions
 
-For details on our development process, Git conventions, and project roadmap, please see the following documents in the `/docs` folder:
+For details on our development process, Git conventions, and project roadmap, please see the following documents in the ```/docs``` folder:
 
-*   [**Git Conventions (`docs/git_conventions.md`)**](./docs/git_conventions.md): Guidelines for commit messages, branching, and pull requests. Essential for contributors and for AI-assisted commit generation.
-*   [**Project Roadmap (`docs/roadmap.md`)**](./docs/roadmap.md): A detailed outline of planned features and development milestones.
+*   [**Git Conventions (```docs/git_conventions.md```)**](./docs/git_conventions.md): Guidelines for commit messages, branching, and pull requests. Essential for contributors and for AI-assisted commit generation.
+*   [**Project Roadmap (```docs/roadmap.md```)**](./docs/roadmap.md): A detailed outline of planned features and development milestones.
