@@ -1,159 +1,111 @@
-# DirAnalyze — Local LLM Coding Cockpit
+# DirAnalyze
 
-⚠️ Security Advisory
+*The tiny, local-first AI cockpit for huge codebases.*
 
-DirAnalyze is not sandboxed. Running untrusted code is dangerous. Use caution when loading third-party projects. Full security isolation is a Research goal and not part of Core 1.0.
+- **Single binary (planned)** – no Docker, no Node, no Python runtime  
+- **Paste-and-go (planned)** – drop a repo, paste your LLM key, start coding  
+- **Hierarchical Semantic Sketch** – budget-bounded tree of package → file → symbol summaries; ships only what the model needs  
+- **Hard secret gate** – TruffleHog scan; refuses to leak keys or tokens  
+- **Deterministic hash log** – every file, prompt and diff recorded for audit/replay  
+- **MIT licence** – fork it, remix it, just keep the header  
 
-DirAnalyze is a **single‑binary development station** that lets you:
-
-* paste your **Gemini / OpenAI / local‑LLM** key once,
-* drop in any repo (web, Zig, C/C++, small Swift‑PM, basic Python),
-* chat‑drive code edits, builds, and tests **offline**,
-* preview results in your browser or on a tethered device,
-* and keep a deterministic, hash‑logged record of every action so you can replay or audit the work months later.
-
-It runs on Windows 10+, macOS 13+, and most modern Linux distros—no installers, no package managers, no cloud calls except the LLM endpoint you configure.
-
-> **Current status (2025‑05‑30):** ```v0.2.1‑alpha``` – AI Debriefing Assistant added. Development is active for LLM Key Integration, Zig Runner, C/C++ Runner, Web Project Runner (for preview), Windows‑GUI spawn, Python runner, and iOS device sideload. Everything else is marked **experimental** and off by default.
+> **Security advisory** DirAnalyze is **not sandboxed**. Running untrusted code is dangerous.  
+> **Status** Pre-alpha: nothing usable today; see the roadmap.
 
 ---
 
-## Why bother?  (Core advantages)
+## 1 Why bother?
 
-| Pain elsewhere                             | DirAnalyze answer                                                         |
-| ------------------------------------------ | ------------------------------------------------------------------------- |
-| 15 GB IDE + plugin maze                    | < 5 MB static Zig binary, zero installers.                                |
-| NPM audit hell & CDN outages               | All assets baked into the binary you can hash today and run in 2035.      |
-| LLM context bloat                          | Local index (FTS + embeddings) narrows prompts to ≈ 30 files, not 30 000. |
-| “Copy prompt → paste AI → copy patch” loop | One ```/api/action``` call per edit; the UI does the plumbing for you.      |
-| Fear of cloud snooping                     | Runs offline; only your LLM endpoint sees code, and you choose which one. |
-
----
-
-## 1  Design principles
-
-1. **Own the stack** – the repo contains every byte needed to rebuild; external CLIs are version‑pinned in ```/third_party/manifest.lock```.
-2. **Deterministic log** – every FS write, runner spawn, and LLM prompt/response hash is appended to a SQLite journal so a future run can replay or diff behaviour. *Runners that invoke external tools (e.g., shell, build systems, device tools) are version-pinned but not frozen in behavior. Re-execution may vary depending on OS/hardware environment.*
-3. **Machine‑first interface** – the LLM sends JSON actions like ```{ "op": "patch", "path": "src/foo.zig", … }```.  Human UI is a thin viewer.
-4. **Small surface first, power later** – core runners do only spawn + log; screen capture, simulators, sandboxing, and Holoform graphs are opt‑in experiments.
-5. **Offline by default** – network is used only for the LLM HTTPS target you configure.
+| Pain elsewhere                           | DirAnalyze answer (planned)                              |
+|-----------------------------------------|----------------------------------------------------------|
+| 15 GB IDE + plugin maze                 | < 5 MB static binary, zero installers                   |
+| "Paste whole repo into ChatGPT" bloat   | Sketch index narrows prompts to ≈ 10 k tokens            |
+| Copy-prompt-paste loop                  | JSON actions applied atomically via local cockpit        |
+| Cloud snooping fears                    | Runs offline; only your chosen LLM endpoint sees code    |
+| No trace of what AI changed             | Deterministic hash log for full replay                   |
 
 ---
 
-## 2  How it works (high‑level)
+## 2 Current state (2025-06-02)
 
-```
-┌────────── Browser UI (static HTML/JS) ──────────┐
-│  • file tree  • chat  • diff viewer  • logs     │
-└────▲───────────────fetch/WebSocket────────▲─────┘
-     │                                       │
-     │           DirAnalyze (zig exe)        │
-     │   ─ HTTP server & static assets       │
-     │   ─ FSAL  + deterministic log         │
-     │   ─ Ranker (FTS + MiniLM embeddings)  │
-     │   ─ Runner registry (zig/c/web/…)     │
-     │   ─ LLM proxy (curl TLS, key in cfg)   │
-     ▼                                       ▼
-  source repo                          external CLI
-                                       (only when
-                                        runner needs)
+| Component                      | State           |
+|--------------------------------|-----------------|
+| Zig/Rust/Go backend            | not started     |
+| Tree-sitter parsers (Swift/JS) | **todo**        |
+| Sketch index builder           | spec drafted    |
+| TruffleHog gate                | CLI stubbed     |
+| Deterministic log v1           | schema drafted  |
+| Browser UI                     | prototype only  |
+| Benchmarks                     | design pending  |
+
+---
+
+## 3 Quick start (placeholder)
+
+```bash
+# binary not published yet
+./diranalyze serve path/to/my/repo
+# browser will open at http://localhost:8080
 ```
 
-*On first load* DirAnalyze indexes the repo, stores hashes + string literals + embeddings in SQLite, and serves the UI.  Edits flow as JSON actions, applied atomically; the LLM never sees more than the ranked slice of code you allowed. *Runners that invoke external tools (e.g., shell, build systems, device tools) are version-pinned but not frozen in behavior. Re-execution may vary depending on OS/hardware environment.*
+---
 
+## 4 Roadmap snapshot
+
+| Version | Focus                                                  | State           |
+| ------- | ------------------------------------------------------ | --------------- |
+| 0.1     | Round-trip prompt, sketch index, secret gate, hash log | **in progress** |
+| 0.2     | Retrieval benchmark & CLI polish                       | planned         |
+| 0.3     | Embedded browser UI                                    | planned         |
+| 0.4     | Runner plugin API                                      | planned         |
+
+Full details in [`ROADMAP.md`](./ROADMAP.md).
 
 ---
 
-## 3  Quick start
+## 5 Design principles
+
+1. **Own the stack** – every byte needed to rebuild lives in the repo
+2. **Deterministic first** – hash every read/write, prompt, diff
+3. **Machine-first interface** – LLM sends JSON actions; UI is a viewer
+4. **Small surface first** – core features only; experiments behind flags
+5. **Offline by default** – network hits only the LLM HTTPS target you set
+
+---
+
+## 6 Planned architecture
 
 ```
-# 1. clone
-$ git clone https://github.com/<you>/diranalyze.git && cd diranalyze
-
-# 2. build static binary
-$ zig build -Drelease-safe   # < 20 s on a laptop
-
-# 3. run
-$ ./zig-out/bin/diranalyze
-# open http://localhost:8787  (first run prompts for LLM key)
+Browser UI ── fetch/ws ──┐
+                         ▼
+         DirAnalyze binary (HTTP+WS, index, log, proxy)
+                         ▲
+       external LLM HTTPS│   optional runners (zig cc, swiftc…)
 ```
 
-Requirements: Zig 0.12 nightly or newer.  On Windows, run from PowerShell; on macOS, ```codesign --remove-signature``` is not needed.
+*Diagram represents target design; not yet implemented.*
 
 ---
 
-## 4  Feature matrix
+## 7 Limitations
 
-| Feature                   | v0.2.1‑alpha | v0.3 (target '25‑Q4) | Notes                                   |
-| ------------------------- | ------------ | -------------------- | --------------------------------------- |
-| Paste LLM key (UI)        | ❌ dev       | ✅                    | Stored in local config.                 |
-| FTS + embedding ranker    | ✅            | improving            | Uses MiniLM‑L6; can swap.               |
-| Git commit helper         | ✅            | UI polish            | Simple add/commit/tag.                  |
-| **AI Debriefing Assistant** | ✅          | UI Polish            | Context packaging for AI.               |
-| **Zig Runner**            | 🔄 dev       | ✅                    | Handles ```zig build```, ```zig test``` etc. |
-| **C/C++ Runner**          | 🔄 dev       | ✅                    | Build via ```zig cc```.                     |
-| **Web Runner** (preview)  | ❌ dev       | ✅                    | Serve static files for browser preview. |
-| Windows‑GUI spawn         | 🔄 dev       | ✅                    | No capture yet.                         |
-| Python runner             | 🔄 dev       | ✅                    | System ```python3```; embed later.          |
-| iOS device sideload       | 🔄 dev       | beta                 | Needs libimobiledevice.                 |
-| Screen capture            | ❌            | experimental         | ffmpeg / BitBlt; opt‑in.                |
-| Holoform graph index      | ❌            | experimental         | Off by default.                         |
-| Cross‑OS sandboxing       | ❌            | research             | Future cgroup/jobobject.                |
+* Not an IDE – no IntelliSense or refactor-rename yet
+* Non-GNU tool-chains need custom runners
+* Full determinism depends on pinned versions of external CLIs
+* Security isolation is research-phase; run trusted code only
 
 ---
 
-## 5  Roadmap snapshot (freeze 2025‑05‑30)
+## 8 Contributing
 
-**Core 1.0 (ship 2025‑12‑31)**
+1. Fork → branch `feat/<topic>`
+2. Keep docs and tests in sync
+3. Follow [`docs/git_conventions.md`](./docs/git_conventions.md)
 
-* LLM Key Configuration (UI & Backend)
-* Stable Zig Runner
-* Stable C/C++ Runner
-* Web Project Runner (preview serving)
-* Windows‑GUI spawn + log
-* Python runner (system)
-* Deterministic FS log schema v1 *Runners that invoke external tools (e.g., shell, build systems, device tools) are version-pinned but not frozen in behavior. Re-execution may vary depending on OS/hardware environment.*
-* Plugin API for external runners
-* **AI Debriefing Assistant** (Context packaging)
-
-**Extended (2026‑Q2+)**
-
-* iOS device runner (sideload + syslog)
-* Basic screen capture plugin
-* Embeddable CPython 3.12
-
-**Research (no dates)**
-
-* Holoform graph + smart ranker >90 % precision
-* Remote iOS simulator mirroring
-* Cross‑platform resource sandboxing
+Good-first-issue tags are up for grabs; PRs welcome.
 
 ---
 
-## 6  Limitations (know before you dive)
+## 9 License
 
-* Not an IDE—no IntelliSense, no refactor‑rename yet.
-* Non‑GNU tool‑chains (MSVC, big Xcode projects) require custom runners.
-* Full determinism depends on pinned versions of external CLIs; future OS changes may break them.
-* Security: running un‑trusted code is **unsafe** until sandbox research matures.
-
----
-
-## 7  Contributing
-
-* Clone → create branch ```feat/<topic>``` → run ```zig build test``` → open PR.
-* Keep docs + README in sync; every feature must add a log‑replay test.
-* Experimental features belong behind ```--feature <flag>```.
-
----
-
-## 8  License
-
-MIT for core source.  Third‑party CLI tools are under their original licenses—see ```/third_party/```.
-
-## Project Management & Conventions
-
-For details on our development process, Git conventions, and project roadmap, please see the following documents in the ```/docs``` folder:
-
-*   [**Git Conventions (```docs/git_conventions.md```)**](./docs/git_conventions.md): Guidelines for commit messages, branching, and pull requests. Essential for contributors and for AI-assisted commit generation.
-*   [**Project Roadmap (```docs/roadmap.md```)**](./docs/roadmap.md): A detailed outline of planned features and development milestones.
+MIT for core source. Third-party tools retain their original licences.

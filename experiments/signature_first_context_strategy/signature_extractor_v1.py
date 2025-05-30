@@ -1,3 +1,4 @@
+# LEGACY – kept for baseline comparison; superseded by Tree-sitter extractor (TBD)
 # experiments/signature_first_context_strategy/signature_extractor_v1.py
 # Purpose: Initial experiment to extract basic JavaScript signatures using regex.
 # Demonstrates potential for token reduction but highlights limitations of regex for complex code.
