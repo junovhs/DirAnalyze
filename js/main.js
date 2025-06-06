@@ -4,15 +4,15 @@ import * as uiManager from './uiManager.js';
 import * as treeView from './treeView.js';
 import * as statsManager from './statsManager.js';
 import * as reportGenerator from './reportGenerator.js';
-import * as notificationSystem from './notificationSystem.js';
-import * as errorHandler from './errorHandler.js';
-import * as fileEditor from './fileEditor.js';
-import * as aiPatcher from './aiPatcher.js';
-import * as zipManager from './zipManager.js';
-import * as utils from './utils.js';
-import * as scaffoldImporter from './scaffoldImporter.js';
+import * as notificationSystem from 'notificationSystem';
+import * as errorHandler from 'errorHandler';
+import * as fileEditor from 'fileEditor';
+import * as aiPatcher from 'aiPatcher';
+import * as zipManager from 'zipManager';
+import * as utils from 'utils';
+import * as scaffoldImporter from 'scaffoldImporter';
 import * as sidebarResizer from './sidebarResizer.js';
-import * as aiDebriefingAssistant from './aiDebriefingAssistant.js';
+import * as aiDebriefingAssistant from 'aiDebriefingAssistant';
 
 
 export const appState = {
@@ -28,7 +28,8 @@ export const appState = {
     isLoadingFileContent: false,
     editorActiveAsMainView: false,
     previousActiveTabId: null,
-    directoryHandle: null, 
+    directoryHandle: null,
+    saveState: null, // In-memory snapshot of file contents
 };
 
 export let elements = {};
@@ -60,6 +61,8 @@ function populateElements() {
         collapseAllBtn: 'collapseAllBtn',
         downloadProjectBtn: 'downloadProjectBtn',
         clearProjectBtn: 'clearProjectBtn',
+        restoreStateBtn: 'restoreStateBtn',
+        saveStateStatus: 'saveStateStatus',
         filePreview: 'filePreview',
         filePreviewTitle: 'filePreviewTitle',
         filePreviewContentWrapper: 'filePreviewContentWrapper',
@@ -72,10 +75,7 @@ function populateElements() {
         fileEditor: 'fileEditor',
         editorFileTitle: 'editorFileTitle',
         editorContent: 'editorContent',
-        saveEditorBtn: 'saveEditorBtn',
         closeEditorBtn: 'closeEditorBtn',
-        editorStatus: 'editorStatus',
-        editorInfo: 'editorInfo',
         aiPatchPanel: 'aiPatchPanel',
         aiPatchInput: 'aiPatchInput',
         applyAiPatchBtn: 'applyAiPatchBtn',
@@ -88,7 +88,6 @@ function populateElements() {
         skipPatchChanges: 'skipPatchChanges',
         cancelAllPatchChanges: 'cancelAllPatchChanges',
         mainActionDiv: 'mainAction',
-        copyPatchPromptBtn: 'copyPatchPromptBtn', 
         importAiScaffoldBtn: 'importAiScaffoldBtn',
         copyScaffoldPromptBtn: 'copyScaffoldPromptBtn',
         scaffoldImportModal: 'scaffoldImportModal',
@@ -104,8 +103,6 @@ function populateElements() {
         debriefMetadataCheckbox: 'debriefMetadataCheckbox',
         assembleDebriefPackageBtn: 'assembleDebriefPackageBtn',
         useStandardDebriefProfileBtn: 'useStandardDebriefProfileBtn',
-        // Note: debriefProjectName, metadataCheckboxLabel, debriefScriptCommands are inside the modal,
-        // their direct references in `elements` might not be needed if aiDebriefingAssistant.js handles them.
     };
 
     for (const key in elementIds) {
@@ -188,70 +185,6 @@ Example of the expected JSON object format:
 Now, based on my request, generate the project scaffold JSON object:
 `;
 
-const capcaPatchPromptTemplate = `You are an AI assistant helping with code modifications. I will provide you with a file path and its content. Your task is to generate a JSON array of "Contextual Anchor Patch Content Application" (CAPCA) instructions to modify this file.
-
-Each instruction in the JSON array must be an object with the following properties:
-1.  "file": (string) The full path of the file to be modified (I will provide this).
-2.  "operation": (string) The type of operation. Supported operations are:
-    *   "create_file_with_content": Creates a new file.
-        *   Required: "newText" (string) - The full content of the new file.
-        *   Do NOT use "anchorText" or "segmentToAffect" for this operation.
-    *   "replace_segment_after_anchor": Replaces a specific segment of text that appears AFTER a unique anchor text.
-        *   Required: "anchorText" (string) - A unique string in the file that precedes the segment to be replaced. This anchor should be distinctive.
-        *   Required: "segmentToAffect" (string) - The exact segment of text to be replaced. This segment must appear immediately or very closely after the "anchorText".
-        *   Required: "newText" (string) - The new text that will replace "segmentToAffect".
-        *   Optional: "originalLineOfAnchor" (number) - The original line number where "anchorText" is expected. Helps disambiguate if anchor is not unique.
-        *   Optional: "leniencyChars" (number, default 5) - How many characters after the anchor the "segmentToAffect" can start.
-    *   "insert_text_after_anchor": Inserts text immediately AFTER a unique anchor text.
-        *   Required: "anchorText" (string) - A unique string in the file after which the new text will be inserted.
-        *   Required: "newText" (string) - The text to be inserted.
-        *   Optional: "originalLineOfAnchor" (number) - The original line number where "anchorText" is expected.
-    *   "delete_segment_after_anchor": Deletes a specific segment of text that appears AFTER a unique anchor text.
-        *   Required: "anchorText" (string) - A unique string in the file that precedes the segment to be deleted.
-        *   Required: "segmentToAffect" (string) - The exact segment of text to be deleted.
-        *   Optional: "originalLineOfAnchor" (number) - The original line number where "anchorText" is expected.
-        *   Optional: "leniencyChars" (number, default 5) - How many characters after the anchor the "segmentToAffect" can start.
-
-General Guidelines for CAPCA instructions:
--   Ensure "anchorText" is as unique and stable as possible. Prefer anchors that span multiple lines if it increases uniqueness, using "\\n" for newlines within the "anchorText" string.
--   "segmentToAffect" should be the exact text to replace or delete. For multi-line segments, use "\\n" for newlines.
--   If replacing an entire file's content, it's often better to use a single "replace_segment_after_anchor" where "anchorText" is an empty string at the beginning of the file (or a very early, stable marker like "<?php" or "<!DOCTYPE html>") and "segmentToAffect" is the ENTIRE old content, and "newText" is the ENTIRE new content. The DirAnalyse tool's \`findRobustAnchorIndex\` handles an empty \`anchorText\` by returning index 0. So, to replace the whole file, use \`anchorText: ""\`, \`segmentToAffect: "[original full content of the file]"\`, \`newText: "[new full content of the file]"\`)
--   If "segmentToAffect" is intended to be empty (e.g., replacing nothing with something, effectively an insert at a specific point after an anchor where the 'nothing' is precisely located), provide \`segmentToAffect: ""\`. This is distinct from \`insert_text_after_anchor\` which always inserts *immediately* after the anchor.
--   Generate ONLY the JSON array. Do not include any explanations, comments, or markdown formatting like \`\`\`json ... \`\`\` around the JSON output.
--   The output must be a single, valid JSON array of CAPCA instruction objects.
-
-Example:
-If the file "src/example.js" has content:
-\`\`\`javascript
-// app.js
-function greetOld() {
-  console.log("Hello, old world!");
-}
-// More code
-\`\`\`
-And I want to change \`greetOld\` to \`greetNew\` and update the message.
-A possible CAPCA instruction JSON would be:
-\`\`\`json
-[
-  {
-    "file": "src/example.js",
-    "operation": "replace_segment_after_anchor",
-    "anchorText": "// app.js\\n",
-    "segmentToAffect": "function greetOld() {\\n  console.log(\\"Hello, old world!\\");\\n}",
-    "newText": "function greetNew() {\\n  console.log(\\"Hello, new world!\\");\\n}",
-    "originalLineOfAnchor": 1
-  }
-]
-\`\`\`
-
-Now, here is the file path and its current content. Please generate the CAPCA JSON based on the changes I will describe next (or if I just ask you to refactor/fix something, infer the changes and generate the patches):
-File Path: [User will paste file path here]
-Current Content:
----
-[User will paste file content here]
----
-`;
-
 
 function handleCopyScaffoldPrompt() {
     navigator.clipboard.writeText(scaffoldPromptTemplate)
@@ -263,21 +196,6 @@ function handleCopyScaffoldPrompt() {
             errorHandler.showError({
                 name: "ClipboardError",
                 message: "Failed to copy scaffold prompt to clipboard.",
-                stack: err.stack
-            });
-        });
-}
-
-function handleCopyPatchPrompt() {
-    navigator.clipboard.writeText(capcaPatchPromptTemplate)
-        .then(() => {
-            notificationSystem.showNotification("AI Patch Generation Prompt copied to clipboard!", { duration: 3500 });
-        })
-        .catch(err => {
-            console.error('Failed to copy patch prompt: ', err);
-            errorHandler.showError({
-                name: "ClipboardError",
-                message: "Failed to copy patch prompt to clipboard.",
                 stack: err.stack
             });
         });
@@ -302,7 +220,7 @@ function setupEventListeners() {
     safeAddEventListener(elements.commitSelectionsBtn, 'click', commitSelections, 'commitSelectionsBtn');
     safeAddEventListener(elements.downloadProjectBtn, 'click', zipManager.downloadProjectAsZip, 'downloadProjectBtn');
     safeAddEventListener(elements.clearProjectBtn, 'click', clearProjectData, 'clearProjectBtn');
-    safeAddEventListener(elements.copyPatchPromptBtn, 'click', handleCopyPatchPrompt, 'copyPatchPromptBtn'); 
+    safeAddEventListener(elements.restoreStateBtn, 'click', restoreSaveState, 'restoreStateBtn'); // <<< ADD THIS
 
     safeAddEventListener(elements.expandAllBtn, 'click', () => treeView.toggleAllFolders(false), 'expandAllBtn');
     safeAddEventListener(elements.collapseAllBtn, 'click', () => treeView.toggleAllFolders(true), 'collapseAllBtn');
@@ -317,18 +235,33 @@ function setupEventListeners() {
     safeAddEventListener(elements.copyReportButton, 'click', copyReport, 'copyReportButton');
     safeAddEventListener(elements.copyScaffoldPromptBtn, 'click', handleCopyScaffoldPrompt, 'copyScaffoldPromptBtn');
     
-    // Event listener for AI Debriefing Assistant button is now handled within aiDebriefingAssistant.js's init function
-    // if elements.aiDebriefingAssistantBtn is available when that init runs.
-    // For cancel button in the new modal:
-    const cancelDebriefBtn = document.getElementById('cancelAiDebriefBtn'); // Get it directly as it's specific
+    const cancelDebriefBtn = document.getElementById('cancelAiDebriefBtn'); 
     if (cancelDebriefBtn && elements.closeAiDebriefingAssistantModalBtn) {
-         // Make "Cancel" behave like "Close X"
         cancelDebriefBtn.addEventListener('click', () => elements.closeAiDebriefingAssistantModalBtn.click());
     }
 }
 
 function handleDragOver(e) { e.preventDefault(); if (elements.dropZone) elements.dropZone.classList.add('dragover'); }
 function handleDragLeave() { if (elements.dropZone) elements.dropZone.classList.remove('dragover'); }
+
+async function handleFileDrop(event) {
+    event.preventDefault();
+    if (appState.processingInProgress) return;
+    elements.dropZone.classList.remove('dragover');
+
+    try {
+        const handle = await event.dataTransfer.items[0].getAsFileSystemHandle();
+        if (handle.kind !== 'directory') {
+            errorHandler.showError({ name: "InvalidTargetError", message: "Please drop a folder, not an individual file." });
+            return;
+        }
+        appState.directoryHandle = handle; // Store the handle
+        await verifyAndProcessDirectory(handle);
+    } catch (err) {
+        console.error("Error getting file system handle:", err);
+        errorHandler.showError({ name: "PermissionError", message: "Could not access the folder. You may need to grant permission." });
+    }
+}
 
 async function handleFolderSelect(event) {
     if (appState.processingInProgress) return;
@@ -345,97 +278,6 @@ async function handleFolderSelect(event) {
     }
 }
 
-async function verifyAndProcessDirectory(directoryHandle) {
-    // Verify permissions
-    if (await directoryHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
-        if (await directoryHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
-            errorHandler.showError({ name: "PermissionError", message: "Write permission for the folder was denied." });
-            return;
-        }
-    }
-
-    resetUIForProcessing(`Processing '${directoryHandle.name}'...`);
-    appState.processingInProgress = true;
-
-    try {
-        appState.fullScanData = await fileSystem.processDirectoryEntryRecursive(directoryHandle, directoryHandle.name, 0);
-        
-        // ... (The rest of the logic remains the same as before)
-        if (appState.fullScanData.directoryData && elements.treeContainer) {
-             treeView.renderTree(appState.fullScanData.directoryData, elements.treeContainer);
-        } else {
-             throw new Error("processDirectoryEntryRecursive failed to return directoryData or treeContainer missing.");
-        }
-        const allInitiallySelectedPaths = new Set();
-        if(appState.fullScanData.allFilesList) appState.fullScanData.allFilesList.forEach(f => allInitiallySelectedPaths.add(f.path));
-        if(appState.fullScanData.allFoldersList) appState.fullScanData.allFoldersList.forEach(f => allInitiallySelectedPaths.add(f.path));
-
-        appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, allInitiallySelectedPaths);
-        appState.selectionCommitted = true;
-
-        if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'flex';
-        if (elements.visualOutputContainer) elements.visualOutputContainer.style.display = 'flex';
-        if (elements.mainView) elements.mainView.style.display = 'flex';
-        if (elements.treeViewControls) elements.treeViewControls.style.display = 'flex';
-        if (elements.generalActions) elements.generalActions.style.display = 'flex';
-
-        uiManager.activateTab(appState.activeTabId || 'textReportTab');
-        uiManager.refreshAllUI();
-        enableUIControls();
-
-    } catch (err) {
-        console.error("ERROR PROCESSING DIRECTORY:", err);
-        errorHandler.showError(err);
-        showFailedUI("Directory processing failed. Check console and error report.");
-    } finally {
-        if(elements.loader) elements.loader.classList.remove('visible');
-        appState.processingInProgress = false;
-    }
-}
-
-async function processSelectedFolderViaInput(files, rootDirName) {
-    resetUIForProcessing(`Processing '${rootDirName}'...`);
-    appState.processingInProgress = true;
-    try {
-        const virtualDirData = createVirtualDirectoryFromFiles(files, rootDirName);
-        appState.fullScanData = virtualDirData;
-        if (appState.fullScanData.directoryData && elements.treeContainer) {
-             treeView.renderTree(appState.fullScanData.directoryData, elements.treeContainer);
-        } else {
-            throw new Error("Failed to construct directory data from selected files or treeContainer is missing.");
-        }
-
-        const allInitiallySelectedPaths = new Set();
-        if (appState.fullScanData.allFilesList) {
-            appState.fullScanData.allFilesList.forEach(f => allInitiallySelectedPaths.add(f.path));
-        }
-        if (appState.fullScanData.allFoldersList) {
-            appState.fullScanData.allFoldersList.forEach(f => allInitiallySelectedPaths.add(f.path));
-        }
-        appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, allInitiallySelectedPaths);
-        appState.selectionCommitted = true;
-
-        if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'flex';
-        if (elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) {
-            elements.visualOutputContainer.style.display = 'flex';
-        }
-        if (elements.mainView) elements.mainView.style.display = 'flex';
-        if (elements.treeViewControls) elements.treeViewControls.style.display = 'flex';
-        if (elements.generalActions) elements.generalActions.style.display = 'flex';
-
-        uiManager.activateTab(appState.activeTabId || 'textReportTab'); 
-        uiManager.refreshAllUI();
-        enableUIControls();
-
-    } catch (err) {
-        console.error("ERROR PROCESSING FOLDER INPUT:", err);
-        errorHandler.showError(err);
-        showFailedUI("Folder processing failed.");
-    } finally {
-        if(elements.loader) elements.loader.classList.remove('visible');
-        appState.processingInProgress = false;
-    }
-}
 
 function createVirtualDirectoryFromFiles(fileList, rootName) {
     const root = {
@@ -530,24 +372,55 @@ function countEmptyDirs(node, rootName) {
     } return count;
 }
 
-async function handleFileDrop(event) {
-    event.preventDefault();
-    if (appState.processingInProgress) return;
-    elements.dropZone.classList.remove('dragover');
-
-    try {
-        const handle = await event.dataTransfer.items[0].getAsFileSystemHandle();
-        if (handle.kind !== 'directory') {
-            errorHandler.showError({ name: "InvalidTargetError", message: "Please drop a folder, not an individual file." });
+async function verifyAndProcessDirectory(directoryHandle) {
+    // Verify permissions
+    if (await directoryHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+        if (await directoryHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
+            errorHandler.showError({ name: "PermissionError", message: "Write permission for the folder was denied." });
             return;
         }
-        appState.directoryHandle = handle; // Store the handle
-        await verifyAndProcessDirectory(handle);
+    }
+
+    resetUIForProcessing(`Processing '${directoryHandle.name}'...`);
+    appState.processingInProgress = true;
+
+    try {
+        appState.fullScanData = await fileSystem.processDirectoryEntryRecursive(directoryHandle, directoryHandle.name, 0);
+        
+        // ... (The rest of the logic remains the same as before)
+        if (appState.fullScanData.directoryData && elements.treeContainer) {
+             treeView.renderTree(appState.fullScanData.directoryData, elements.treeContainer);
+        } else {
+             throw new Error("processDirectoryEntryRecursive failed to return directoryData or treeContainer missing.");
+        }
+        const allInitiallySelectedPaths = new Set();
+        if(appState.fullScanData.allFilesList) appState.fullScanData.allFilesList.forEach(f => allInitiallySelectedPaths.add(f.path));
+        if(appState.fullScanData.allFoldersList) appState.fullScanData.allFoldersList.forEach(f => allInitiallySelectedPaths.add(f.path));
+
+        appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, allInitiallySelectedPaths);
+        appState.selectionCommitted = true;
+
+        if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'flex';
+        if (elements.visualOutputContainer) elements.visualOutputContainer.style.display = 'flex';
+        if (elements.mainView) elements.mainView.style.display = 'flex';
+        if (elements.treeViewControls) elements.treeViewControls.style.display = 'flex';
+        if (elements.generalActions) elements.generalActions.style.display = 'flex';
+
+        uiManager.activateTab(appState.activeTabId || 'textReportTab');
+        uiManager.refreshAllUI();
+        enableUIControls();
+        await createSaveState(); // <<< ADD THIS LINE
+
     } catch (err) {
-        console.error("Error getting file system handle:", err);
-        errorHandler.showError({ name: "PermissionError", message: "Could not access the folder. You may need to grant permission." });
+        console.error("ERROR PROCESSING DIRECTORY:", err);
+        errorHandler.showError(err);
+        showFailedUI("Directory processing failed. Check console and error report.");
+    } finally {
+        if(elements.loader) elements.loader.classList.remove('visible');
+        appState.processingInProgress = false;
     }
 }
+
 
 export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     if (elements.loader) {
@@ -567,9 +440,7 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
 
 
     if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'none';
-    if (elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) {
-        elements.visualOutputContainer.style.display = 'none';
-    }
+    if (elements.visualOutputContainer) elements.visualOutputContainer.style.display = 'none';
     if (elements.treeViewControls) elements.treeViewControls.style.display = 'none';
     if (elements.generalActions) elements.generalActions.style.display = 'none';
 
@@ -587,7 +458,7 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
 
 
     const modalsToHide = [
-        elements.aiBriefingStudioModal, elements.scaffoldImportModal,
+        elements.scaffoldImportModal,
         elements.aiPatchDiffModal, elements.filePreview, elements.errorReport,
         elements.aiDebriefingAssistantModal // Add new modal here
     ];
@@ -602,7 +473,6 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     if (elements.globalStatsDiv) elements.globalStatsDiv.innerHTML = '';
     if (elements.fileTypeTableBody) elements.fileTypeTableBody.innerHTML = '';
     if (elements.textOutputEl) elements.textOutputEl.textContent = '';
-    if (elements.selectedFilesContainer) elements.selectedFilesContainer.innerHTML = '<div class="empty-notice">NO FILES IN COMMITTED SELECTION.<br>USE TREE AND \'COMMIT SELECTIONS\'.</div>';
     if (elements.selectionSummaryDiv && elements.selectionSummaryDiv.style) elements.selectionSummaryDiv.style.display = 'none';
 
 
@@ -624,7 +494,6 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
-    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true;
     if (elements.aiDebriefingAssistantBtn) elements.aiDebriefingAssistantBtn.disabled = true;
 
 
@@ -638,7 +507,7 @@ export function enableUIControls() {
         elements.selectAllBtn, elements.deselectAllBtn, elements.commitSelectionsBtn,
         elements.expandAllBtn, elements.collapseAllBtn,
         elements.downloadProjectBtn, elements.clearProjectBtn, elements.copyReportButton,
-        elements.applyAiPatchBtn, elements.copyPatchPromptBtn, elements.aiDebriefingAssistantBtn
+        elements.applyAiPatchBtn, elements.aiDebriefingAssistantBtn
     ];
     buttonsToEnable.forEach(btn => { if (btn) btn.disabled = !appState.fullScanData; }); // Disable if no fullScanData
 
@@ -647,11 +516,6 @@ export function enableUIControls() {
     }
     if (elements.copyScaffoldPromptBtn) {
         elements.copyScaffoldPromptBtn.disabled = appState.processingInProgress;
-    }
-    if (elements.copySelectedBtn) {
-        const currentTabIsCombine = document.querySelector('.tab-button[data-tab="combineModeTab"]')?.classList.contains('active');
-        const textFilesInCommitted = appState.committedScanData?.allFilesList.some(f => utils.isLikelyTextFile(f.path));
-        elements.copySelectedBtn.disabled = !(currentTabIsCombine && appState.selectionCommitted && textFilesInCommitted && appState.fullScanData);
     }
      if (elements.clearProjectBtn) { // Already in buttonsToEnable, but this specific logic is fine
         elements.clearProjectBtn.disabled = !appState.fullScanData;
@@ -672,10 +536,9 @@ function disableUIControls() {
         elements.selectAllBtn, elements.deselectAllBtn, elements.commitSelectionsBtn,
         elements.expandAllBtn, elements.collapseAllBtn,
         elements.downloadProjectBtn, elements.clearProjectBtn, elements.copyReportButton,
-        elements.copySelectedBtn,
         elements.applyAiPatchBtn,
-        elements.copyPatchPromptBtn,
-        elements.aiDebriefingAssistantBtn
+        elements.aiDebriefingAssistantBtn,
+        elements.restoreStateBtn
     ];
     buttonsToDisable.forEach(btn => { if (btn) btn.disabled = true; });
     if(elements.mainViewTabs) elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.disabled = true);
@@ -694,7 +557,7 @@ export function showFailedUI(message = "SCAN FAILED - SEE ERROR REPORT") {
         if (typeof uiManager.activateTab === 'function') uiManager.activateTab('textReportTab');
     }
 
-    if(elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) elements.visualOutputContainer.style.display = 'none';
+    if(elements.visualOutputContainer) elements.visualOutputContainer.style.display = 'none';
     if(elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'none';
     if (elements.treeViewControls) elements.treeViewControls.style.display = 'none';
     if (elements.generalActions) elements.generalActions.style.display = 'none';
@@ -705,7 +568,6 @@ export function showFailedUI(message = "SCAN FAILED - SEE ERROR REPORT") {
     if(elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
-    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true;
     if (elements.aiDebriefingAssistantBtn) elements.aiDebriefingAssistantBtn.disabled = true;
 
 
@@ -784,7 +646,6 @@ function clearProjectData() {
     resetUIForProcessing("DROP A FOLDER OR SELECT ONE TO BEGIN."); 
     if(elements.loader) elements.loader.classList.remove('visible');
     if(elements.mainActionDiv && elements.mainActionDiv.style) elements.mainActionDiv.style.display = 'flex';
-    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true; 
     if (elements.aiDebriefingAssistantBtn) elements.aiDebriefingAssistantBtn.disabled = true;
 }
 
@@ -816,9 +677,7 @@ function initApp() {
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.style.display = 'block';
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.style.display = 'block';
 
-    if (elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) {
-        elements.visualOutputContainer.style.display = 'none';
-    }
+    if (elements.visualOutputContainer) elements.visualOutputContainer.style.display = 'none';
     if (elements.treeViewControls) elements.treeViewControls.style.display = 'none';
     if (elements.generalActions) elements.generalActions.style.display = 'flex'; // Keep general actions visible
 
@@ -847,7 +706,7 @@ function initApp() {
 
     const modalsToHideOnInit = [
         elements.filePreview, elements.errorReport,
-        elements.aiPatchDiffModal, elements.aiBriefingStudioModal, elements.scaffoldImportModal,
+        elements.aiPatchDiffModal, elements.scaffoldImportModal,
         elements.aiDebriefingAssistantModal // Add new modal here
     ];
     modalsToHideOnInit.forEach(panel => { if (panel && panel.style) panel.style.display = 'none'; });
@@ -860,7 +719,6 @@ function initApp() {
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
-    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true;
     if (elements.aiDebriefingAssistantBtn) elements.aiDebriefingAssistantBtn.disabled = true; // Disabled until project loaded
 
 
@@ -871,6 +729,67 @@ function initApp() {
 
     appState.initialLoadComplete = true;
     console.log("DirAnalyse Matrix Initialized. Main view editor and new button logic active.");
+}
+
+// --- Snapshot Functions ---
+
+async function createSaveState() {
+    if (!appState.fullScanData || !appState.fullScanData.allFilesList) return;
+
+    notificationSystem.showNotification("Creating session snapshot...", { duration: 1500 });
+    const snapshot = new Map();
+    for (const fileInfo of appState.fullScanData.allFilesList) {
+        try {
+            // Read file content, which will be ArrayBuffer for binary, text for others
+            const content = await fileSystem.readFileContent(fileInfo.entryHandle, fileInfo.path, true);
+            snapshot.set(fileInfo.path, content);
+        } catch (err) {
+            console.warn(`Could not read file for snapshot: ${fileInfo.path}`, err);
+        }
+    }
+    appState.saveState = snapshot;
+
+    if (elements.restoreStateBtn) elements.restoreStateBtn.disabled = false;
+    if (elements.saveStateStatus) {
+        elements.saveStateStatus.textContent = `Snapshot created at ${new Date().toLocaleTimeString()}`;
+    }
+    console.log(`Snapshot created with ${appState.saveState.size} files.`);
+}
+
+async function restoreSaveState() {
+    if (!appState.saveState || appState.saveState.size === 0) {
+        notificationSystem.showNotification("No snapshot available to restore.", { duration: 3000 });
+        return;
+    }
+    if (!confirm("This will revert ALL files in the project to their state when you first loaded them. Are you sure?")) {
+        return;
+    }
+
+    notificationSystem.showNotification("Restoring all files from snapshot...", { duration: 3000 });
+    let restoreCount = 0;
+    let errorCount = 0;
+
+    for (const [path, content] of appState.saveState.entries()) {
+        try {
+            await fileSystem.writeFileContent(appState.directoryHandle, path, content);
+            
+            // Also update the in-memory editor cache to reflect the restore
+            fileEditor.updateFileInEditorCache(path, content, content, false);
+            restoreCount++;
+        } catch (err) {
+            errorCount++;
+            console.error(`Failed to restore file: ${path}`, err);
+        }
+    }
+
+    if (errorCount > 0) {
+        errorHandler.showError({ name: "RestoreError", message: `Failed to restore ${errorCount} files. Check console.` });
+    } else {
+        notificationSystem.showNotification(`Successfully restored ${restoreCount} files. Reloading the app is recommended.`, { duration: 5000 });
+    }
+
+    // It's good practice to recommend a reload to ensure the UI fully reflects the restored state.
+    // You could even force it with: location.reload();
 }
 document.addEventListener('DOMContentLoaded', initApp);
 // --- ENDFILE: js/main.js --- //

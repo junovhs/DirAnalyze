@@ -1,12 +1,25 @@
 // --- FILE: js/fileSystem.js --- //
-import { elements, appState } from './main.js';
+import { appState, elements } from './main.js';
 import * as notificationSystem from 'notificationSystem';
 import * as errorHandler from 'errorHandler';
 import * as fileEditor from 'fileEditor';
 import { getFileExtension } from './utils.js'; // For CodeMirror mode
+import * as utils from './utils.js';
 
-// Process a directory entry recursively and build directory data structure
 export async function processDirectoryEntryRecursive(dirHandle, currentPath, depth, parentAggregator = null) {
+    const ignoreList = ['.git', 'node_modules', '.vscode', '.idea', 'dist', 'build', 'target'];
+
+    if (ignoreList.includes(dirHandle.name)) {
+        console.log(`Ignoring directory: ${dirHandle.name}`);
+        // Return a structure that looks like an empty directory to prevent errors upstream
+        const emptyDirData = {
+            name: dirHandle.name, path: currentPath, type: 'folder', depth,
+            children: [], fileCount: 0, dirCount: 0, totalSize: 0, fileTypes: {},
+            entryHandle: dirHandle
+        };
+        return depth === 0 ? { directoryData: emptyDirData, allFilesList: [], allFoldersList: [], maxDepth: 0, deepestPathExample: '', emptyDirCount: 0 } : { directoryData: emptyDirData };
+    }
+
     try {
         const dirData = {
             name: dirHandle.name, path: currentPath, type: 'folder', depth,
@@ -33,6 +46,10 @@ export async function processDirectoryEntryRecursive(dirHandle, currentPath, dep
         if (entries.length === 0 && depth > 0) aggregator.emptyDirCount++;
 
         for (const entry of entries) {
+            if (ignoreList.includes(entry.name)) {
+                console.log(`Ignoring entry: ${entry.name}`);
+                continue; // Skip this entry
+            }
             const entryPath = `${currentPath}/${entry.name}`;
             if (entry.kind === 'file') {
                 try {
@@ -150,49 +167,36 @@ export function filterScanData(fullData, selectedPathsSet) {
     };
 }
 
-// Read file content.
-// Pass `forceOriginal = true` to bypass edited content and read from handle,
-// used when needing the true original for comparison or reset.
 export async function readFileContent(fileEntryOrHandle, filePathForEditedCheck = null, forceOriginal = false) {
     const pathKey = filePathForEditedCheck || fileEntryOrHandle?.path || fileEntryOrHandle?.fullPath || fileEntryOrHandle?.name;
+    const isText = utils.isLikelyTextFile(pathKey);
 
     try {
-        if (!forceOriginal && pathKey && fileEditor.hasEditedContent(pathKey)) {
+        // For text files, check the editor cache first (unless forcing original)
+        if (isText && !forceOriginal && pathKey && fileEditor.hasEditedContent(pathKey)) {
             return fileEditor.getEditedContent(pathKey);
         }
 
         if (!fileEntryOrHandle) {
-            throw new Error(`Invalid file entry or handle provided for '${pathKey}' (it's null/undefined and not in editor, or original read forced).`);
+            throw new Error(`Invalid file entry or handle provided for '${pathKey}'`);
         }
 
-        // NEW: Handle modern FileSystemFileHandle from showDirectoryPicker()
+        let file;
+        // Get the File object from various handle types
         if (fileEntryOrHandle.kind === 'file' && typeof fileEntryOrHandle.getFile === 'function') {
-            const file = await fileEntryOrHandle.getFile();
+            file = await fileEntryOrHandle.getFile();
+        } else if (fileEntryOrHandle instanceof File) {
+            file = fileEntryOrHandle;
+        } else {
+            throw new Error("Unsupported file entry or handle type for reading.");
+        }
+
+        // Return content in the appropriate format
+        if (isText) {
             return await file.text();
+        } else {
+            return await file.arrayBuffer();
         }
-
-        // Handle File objects (from <input> or a scaffold)
-        if (fileEntryOrHandle instanceof File) {
-            return await fileEntryOrHandle.text();
-        }
-
-        // Handle legacy FileEntry (from old drag-and-drop)
-        if (typeof fileEntryOrHandle.file === 'function') {
-            return new Promise((resolve, reject) => {
-                fileEntryOrHandle.file(
-                    async (fileObject) => {
-                        try {
-                            const text = await fileObject.text();
-                            resolve(text);
-                        } catch (err) { reject(err); }
-                    },
-                    (err) => { reject(err); }
-                );
-            });
-        }
-
-        // If none of the above match, it's an unsupported type.
-        throw new Error("Unsupported file entry or handle type.");
 
     } catch (err) {
         console.error(`Error in readFileContent for ${pathKey}:`, err);
@@ -302,4 +306,23 @@ export async function writeFileContent(directoryHandle, fullPath, content) {
         throw err; // Re-throw so the caller knows it failed
     }
 }
-// --- ENDFILE: js/fileSystem.js --- //
+
+
+export async function getFileHandleFromPath(directoryHandle, fullPath) {
+    const rootName = directoryHandle.name;
+    if (!fullPath.startsWith(rootName + '/')) {
+        throw new Error(`Path "${fullPath}" does not belong to the root directory "${rootName}".`);
+    }
+
+    const relativePath = fullPath.substring(rootName.length + 1);
+    const pathParts = relativePath.split('/');
+    const fileName = pathParts.pop();
+
+    let currentHandle = directoryHandle;
+    for (const part of pathParts) {
+        currentHandle = await currentHandle.getDirectoryHandle(part, { create: false });
+    }
+
+    const fileHandle = await currentHandle.getFileHandle(fileName, { create: false });
+    return fileHandle;
+}
