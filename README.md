@@ -26,17 +26,17 @@
 
 ---
 
-## 2 Current state (2025-06-02)
+## 2 Current state (2025-06-05)
 
-| Component                      | State           |
-|--------------------------------|-----------------|
-| Zig/Rust/Go backend            | not started     |
-| Tree-sitter parsers (Swift/JS) | **todo**        |
-| Sketch index builder           | spec drafted    |
-| TruffleHog gate                | CLI stubbed     |
-| Deterministic log v1           | schema drafted  |
-| Browser UI                     | prototype only  |
-| Benchmarks                     | design pending  |
+| Component                      | State                | Notes                                                      |
+|--------------------------------|----------------------|------------------------------------------------------------|
+| Backend (Go/Rust/Zig)          | not started          | Core logic still pending.                                  |
+| Browser UI (HTML/JS/CSS)       | **Functional Prototype** | Now uses the File System Access API for live local editing.|
+| Hierarchical Sketch            | spec drafted         | Parsing and indexing logic not yet implemented.            |
+| AI Patcher Workflow            | functional           | Can apply CAPCA patches directly to the local disk.        |
+| AI Debriefing Assistant        | functional           | Core workflow for packaging context is implemented.        |
+| Secret Gate (TruffleHog)       | CLI stubbed          | Not yet integrated into the workflow.                      |
+| Deterministic Log              | schema drafted       | Not yet implemented.                                       |
 
 ---
 

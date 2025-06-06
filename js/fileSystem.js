@@ -6,77 +6,53 @@ import * as fileEditor from 'fileEditor';
 import { getFileExtension } from './utils.js'; // For CodeMirror mode
 
 // Process a directory entry recursively and build directory data structure
-export async function processDirectoryEntryRecursive(dirEntry, currentPath, depth, parentAggregator = null) {
+export async function processDirectoryEntryRecursive(dirHandle, currentPath, depth, parentAggregator = null) {
     try {
-        const reader = dirEntry.createReader();
-        let entries = [];
-        let readEntries = await new Promise((res, rej) => reader.readEntries(res, rej));
-        while (readEntries.length > 0) {
-            entries = entries.concat(readEntries);
-            readEntries = await new Promise((res, rej) => reader.readEntries(res, rej));
+        const dirData = {
+            name: dirHandle.name, path: currentPath, type: 'folder', depth,
+            children: [], fileCount: 0, dirCount: 0, totalSize: 0, fileTypes: {},
+            entryHandle: dirHandle
+        };
+
+        let aggregator = parentAggregator || {
+            allFilesList: [], allFoldersList: [], maxDepth: depth,
+            deepestPathExample: currentPath, emptyDirCount: 0
+        };
+
+        if (depth > aggregator.maxDepth) {
+            aggregator.maxDepth = depth;
+            aggregator.deepestPathExample = currentPath;
+        }
+        aggregator.allFoldersList.push({ name: dirData.name, path: dirData.path, entryHandle: dirData.entryHandle });
+
+        const entries = [];
+        for await (const entry of dirHandle.values()) {
+            entries.push(entry);
         }
 
-        const dirData = { 
-            name: dirEntry.name, 
-            path: currentPath, 
-            type: 'folder', 
-            depth, 
-            children: [], 
-            fileCount: 0, 
-            dirCount: 0, 
-            totalSize: 0, 
-            fileTypes: {}, 
-            entryHandle: dirEntry 
-        };
-        
-        let aggregator = parentAggregator || { 
-            allFilesList: [], 
-            allFoldersList: [], 
-            maxDepth: depth, 
-            deepestPathExample: currentPath, 
-            emptyDirCount: 0 
-        };
-        
-        if (depth > aggregator.maxDepth) { 
-            aggregator.maxDepth = depth; 
-            aggregator.deepestPathExample = currentPath; 
-        }
-        
         if (entries.length === 0 && depth > 0) aggregator.emptyDirCount++;
-        aggregator.allFoldersList.push({ name: dirData.name, path: dirData.path, entryHandle: dirData.entryHandle });
 
         for (const entry of entries) {
             const entryPath = `${currentPath}/${entry.name}`;
-            if (entry.isFile) {
+            if (entry.kind === 'file') {
                 try {
-                    const file = await new Promise((res, rej) => entry.file(res, rej));
-                    const ext = file.name.includes('.') ? file.name.substring(file.name.lastIndexOf('.')).toLowerCase() : '(no ext)';
-                    const fileInfo = { 
-                        name: file.name, 
-                        type: 'file', 
-                        size: file.size, 
-                        path: entryPath, 
-                        extension: ext, 
-                        depth: depth + 1, 
-                        entryHandle: entry
+                    const file = await entry.getFile();
+                    const fileInfo = {
+                        name: file.name, type: 'file', size: file.size, path: entryPath,
+                        extension: getFileExtension(file.name), depth: depth + 1, entryHandle: entry
                     };
                     dirData.children.push(fileInfo);
                     dirData.fileCount++;
                     dirData.totalSize += file.size;
-                    aggregator.allFilesList.push({ 
-                        name: file.name, 
-                        path: entryPath, 
-                        size: file.size, 
-                        extension: ext, 
-                        entryHandle: entry
-                    });
+                    aggregator.allFilesList.push({ ...fileInfo }); // Use a copy
+                    const ext = fileInfo.extension;
                     if (!dirData.fileTypes[ext]) dirData.fileTypes[ext] = { count: 0, size: 0 };
                     dirData.fileTypes[ext].count++;
                     dirData.fileTypes[ext].size += file.size;
                 } catch (err) {
                     console.warn(`Skipping file ${entry.name}: ${err.message}`);
                 }
-            } else if (entry.isDirectory) {
+            } else if (entry.kind === 'directory') {
                 try {
                     const subResults = await processDirectoryEntryRecursive(entry, entryPath, depth + 1, aggregator);
                     dirData.children.push(subResults.directoryData);
@@ -189,9 +165,19 @@ export async function readFileContent(fileEntryOrHandle, filePathForEditedCheck 
             throw new Error(`Invalid file entry or handle provided for '${pathKey}' (it's null/undefined and not in editor, or original read forced).`);
         }
 
-        if (fileEntryOrHandle instanceof File) { 
+        // NEW: Handle modern FileSystemFileHandle from showDirectoryPicker()
+        if (fileEntryOrHandle.kind === 'file' && typeof fileEntryOrHandle.getFile === 'function') {
+            const file = await fileEntryOrHandle.getFile();
+            return await file.text();
+        }
+
+        // Handle File objects (from <input> or a scaffold)
+        if (fileEntryOrHandle instanceof File) {
             return await fileEntryOrHandle.text();
-        } else if (typeof fileEntryOrHandle.file === 'function') { 
+        }
+
+        // Handle legacy FileEntry (from old drag-and-drop)
+        if (typeof fileEntryOrHandle.file === 'function') {
             return new Promise((resolve, reject) => {
                 fileEntryOrHandle.file(
                     async (fileObject) => {
@@ -203,13 +189,15 @@ export async function readFileContent(fileEntryOrHandle, filePathForEditedCheck 
                     (err) => { reject(err); }
                 );
             });
-        } else {
-            throw new Error("Unsupported file entry or handle type.");
         }
+
+        // If none of the above match, it's an unsupported type.
+        throw new Error("Unsupported file entry or handle type.");
+
     } catch (err) {
         console.error(`Error in readFileContent for ${pathKey}:`, err);
         if (!err.path) err.path = pathKey;
-        throw err; 
+        throw err;
     }
 }
 
@@ -273,6 +261,45 @@ export async function previewFile(fileEntryOrHandle, filePathForEditedCheck = nu
             stack: err.stack,
             cause: err
         });
+    }
+}
+
+export async function writeFileContent(directoryHandle, fullPath, content) {
+    try {
+        const rootName = directoryHandle.name;
+        if (!fullPath.startsWith(rootName + '/')) {
+            // If the path is just the root name itself (a file dropped in the root)
+            if (fullPath === rootName) {
+                 // This case is ambiguous. Let's assume the user means a file with the same name as the root folder.
+                 // A better approach is to ensure paths are always relative.
+                 // For now, let's treat it as an error or handle it as a file in the root.
+                 // Let's assume it's a file in the root
+                 const fileHandle = await directoryHandle.getFileHandle(fullPath, { create: true });
+                 const writable = await fileHandle.createWritable();
+                 await writable.write(content);
+                 await writable.close();
+                 return;
+            }
+             throw new Error(`Path "${fullPath}" does not belong to the root directory "${rootName}".`);
+        }
+
+        const relativePath = fullPath.substring(rootName.length + 1);
+        const pathParts = relativePath.split('/');
+        const fileName = pathParts.pop();
+
+        let currentHandle = directoryHandle;
+        for (const part of pathParts) {
+            currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+        }
+
+        const fileHandle = await currentHandle.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+    } catch (err) {
+        console.error(`Error writing to local file ${fullPath}:`, err);
+        errorHandler.showError({ name: "FileWriteError", message: `Could not write to file: ${err.message}` });
+        throw err; // Re-throw so the caller knows it failed
     }
 }
 // --- ENDFILE: js/fileSystem.js --- //

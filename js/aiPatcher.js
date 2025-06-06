@@ -3,7 +3,6 @@ import * as fileSystem from 'fileSystem';
 import * as fileEditor from 'fileEditor';
 import * as notificationSystem from 'notificationSystem';
 import * as errorHandler from 'errorHandler';
-import * as combineMode from 'combineMode';
 import * as utils from './utils.js';
 import * as treeView from './treeView.js'; // IMPORT treeView
 
@@ -226,54 +225,56 @@ function showNextPatchInModal() {
     elements.aiPatchDiffModal.style.display = 'block';
 }
 
-function closeDiffModalAndProceed(applyChange) {
+async function closeDiffModalAndProceed(applyChange) {
     if (!currentPatchBeingReviewed) return;
-    const { filePath, patchedContent, patchOp, isNewFile, log } = currentPatchBeingReviewed;
+    const { filePath, patchedContent, patchOp, isNewFile, log, originalContent } = currentPatchBeingReviewed;
 
     if (applyChange) {
-        elements.aiPatchOutputLog.textContent += `\nUser ACTION: Applied - ${filePath} for operation ${patchOp.operation}.\n  Details: ${log || "Content set."}\n`;
-        if (isNewFile) {
-             if (appState.fullScanData && appState.fullScanData.allFilesList && !appState.fullScanData.allFilesList.find(f => f.path === filePath)) {
-                const newFileEntry = { // This is the fileInfo object for the tree
+        try {
+            // First, write the change to the local file system
+            await fileSystem.writeFileContent(appState.directoryHandle, filePath, patchedContent);
+
+            // If write is successful, then update the UI and in-memory state
+            elements.aiPatchOutputLog.textContent += `\nUser ACTION: Applied & Saved - ${filePath}\n  Details: ${log || "Content set."}\n`;
+            notificationSystem.showNotification(`Applied and saved: ${filePath}`, { duration: 2000 });
+
+            if (isNewFile) {
+                const newFileEntry = {
                     name: filePath.substring(filePath.lastIndexOf('/') + 1),
                     path: filePath,
-                    type: 'file', // Explicitly set type
+                    type: 'file',
                     size: patchedContent.length,
                     extension: utils.getFileExtension(filePath),
-                    entryHandle: null, // New files don't have an original FileSystemHandle from scan
-                    depth: (filePath.match(/\//g) || []).length - (appState.fullScanData.directoryData.name.match(/\//g) || []).length // Depth relative to scanned root
+                    depth: (filePath.split('/').length - 1) - (appState.directoryHandle.name.split('/').length -1),
+                    entryHandle: await fileSystem.getFileHandleFromPath(appState.directoryHandle, filePath) // A new function we might need
                 };
-                // Adjust depth if root itself has slashes (less common for root name but possible)
-                if (appState.fullScanData.directoryData.path === filePath.substring(0, appState.fullScanData.directoryData.path.length) && filePath.includes('/')) {
-                    // Depth is count of slashes after the root path part
-                    const relativePath = filePath.substring(appState.fullScanData.directoryData.path.length + 1);
-                    newFileEntry.depth = (relativePath.match(/\//g) || []).length + 1;
-                } else if (!filePath.includes('/')) { // file in root, e.g. "new_file.txt" when root is "project_name"
-                     newFileEntry.depth = 1;
-                } else { // file in subfolder, e.g. "project_name/sub/new_file.txt"
-                    const rootParts = appState.fullScanData.directoryData.path.split('/').length;
-                    const fileParts = filePath.split('/').length;
-                    newFileEntry.depth = fileParts - rootParts;
-
+                
+                // Add to the master list of all files and update tree
+                appState.fullScanData.allFilesList.push(newFileEntry);
+                if (typeof treeView.addFileToTree === 'function') {
+                    treeView.addFileToTree(newFileEntry);
                 }
+            }
 
-                appState.fullScanData.allFilesList.push(newFileEntry); // Add to the master list of all files
-                treeView.addFileToTree(newFileEntry); // <<<< CALL TO UPDATE THE TREE
-                console.log(`File ${filePath} created virtually and added to tree. Tree refresh needed for full visibility if parent was collapsed.`);
-                notificationSystem.showNotification(`File ${filePath} created.`, {duration: 2500});
-             }
+            // Update editor cache
+            fileEditor.updateFileInEditorCache(filePath, patchedContent, originalContent, true);
+
+            if (appState.currentEditingFile && appState.currentEditingFile.path === filePath) {
+                 // The editor content is already updated by updateFileInEditorCache
+            }
+        } catch (err) {
+            // If writing to disk fails, don't proceed with the next patch.
+            notificationSystem.showNotification(`ERROR: Failed to save ${filePath}. Patch not applied.`, { duration: 4000 });
+            // The error is already shown by writeFileContent
+            return; // Stop processing
         }
-        fileEditor.updateFileInEditorCache(filePath, patchedContent, undefined, true);
-        if (appState.currentEditingFile && appState.currentEditingFile.path === filePath) {
-            // No status to set anymore
-        }
-        if (appState.isCombineMode) combineMode.updateCombineModeListDisplay(); // Ensure combine mode reflects it
     } else {
         elements.aiPatchOutputLog.textContent += `\nUser ACTION: Skipped - ${filePath} for operation ${patchOp.operation}.\n`;
     }
+
     elements.aiPatchDiffModal.style.display = 'none';
     currentPatchBeingReviewed = null;
-    showNextPatchInModal();
+    showNextPatchInModal(); // Move to the next patch in the queue
 }
 
 export async function processPatches(patchInstructions) {

@@ -4,14 +4,12 @@ import * as uiManager from './uiManager.js';
 import * as treeView from './treeView.js';
 import * as statsManager from './statsManager.js';
 import * as reportGenerator from './reportGenerator.js';
-import * as combineMode from './combineMode.js';
 import * as notificationSystem from './notificationSystem.js';
 import * as errorHandler from './errorHandler.js';
 import * as fileEditor from './fileEditor.js';
 import * as aiPatcher from './aiPatcher.js';
 import * as zipManager from './zipManager.js';
 import * as utils from './utils.js';
-import * as aiBriefingStudio from './aiBriefingStudio.js';
 import * as scaffoldImporter from './scaffoldImporter.js';
 import * as sidebarResizer from './sidebarResizer.js';
 import * as aiDebriefingAssistant from './aiDebriefingAssistant.js';
@@ -30,6 +28,7 @@ export const appState = {
     isLoadingFileContent: false,
     editorActiveAsMainView: false,
     previousActiveTabId: null,
+    directoryHandle: null, 
 };
 
 export let elements = {};
@@ -54,9 +53,6 @@ function populateElements() {
         loader: 'loader',
         textOutputEl: 'textOutput',
         copyReportButton: 'copyReportButton',
-        combineModePanel: 'combineModePanel',
-        selectedFilesContainer: 'selectedFilesContainer',
-        copySelectedBtn: 'copySelectedBtn',
         selectAllBtn: 'selectAllBtn',
         deselectAllBtn: 'deselectAllBtn',
         commitSelectionsBtn: 'commitSelectionsBtn',
@@ -93,17 +89,6 @@ function populateElements() {
         cancelAllPatchChanges: 'cancelAllPatchChanges',
         mainActionDiv: 'mainAction',
         copyPatchPromptBtn: 'copyPatchPromptBtn', 
-        aiBriefingStudioModal: 'aiBriefingStudioModal',
-        closeAiBriefingStudioModal: 'closeAiBriefingStudioModal',
-        aiBriefTaskInput: 'aiBriefTaskInput',
-        aiBriefGoalSelect: 'aiBriefGoalSelect',
-        aiBriefFileSelectionContainer: 'aiBriefFileSelectionContainer',
-        aiBriefHtmlIdsContainerWrapper: 'aiBriefHtmlIdsContainerWrapper',
-        aiBriefHtmlIdsContainer: 'aiBriefHtmlIdsContainer',
-        aiBriefSpecificInstructionsInput: 'aiBriefSpecificInstructionsInput',
-        aiBriefTokenCountDisplay: 'aiBriefTokenCountDisplay',
-        generateAiBriefPackageBtn: 'generateAiBriefPackageBtn',
-        cancelAiBriefBtn: 'cancelAiBriefBtn',
         importAiScaffoldBtn: 'importAiScaffoldBtn',
         copyScaffoldPromptBtn: 'copyScaffoldPromptBtn',
         scaffoldImportModal: 'scaffoldImportModal',
@@ -112,7 +97,6 @@ function populateElements() {
         createProjectFromScaffoldBtn: 'createProjectFromScaffoldBtn',
         cancelScaffoldImportBtn: 'cancelScaffoldImportBtn',
         textReportTab: 'textReportTab',
-        combineModeTab: 'combineModeTab',
         aiPatcherTab: 'aiPatcherTab',
         aiDebriefingAssistantBtn: 'aiDebriefingAssistantBtn',
         aiDebriefingAssistantModal: 'aiDebriefingAssistantModal',
@@ -331,7 +315,6 @@ function setupEventListeners() {
     }, 'closePreview');
 
     safeAddEventListener(elements.copyReportButton, 'click', copyReport, 'copyReportButton');
-    safeAddEventListener(elements.copySelectedBtn, 'click', combineMode.copySelectedFiles, 'copySelectedBtn');
     safeAddEventListener(elements.copyScaffoldPromptBtn, 'click', handleCopyScaffoldPrompt, 'copyScaffoldPromptBtn');
     
     // Event listener for AI Debriefing Assistant button is now handled within aiDebriefingAssistant.js's init function
@@ -349,12 +332,65 @@ function handleDragLeave() { if (elements.dropZone) elements.dropZone.classList.
 
 async function handleFolderSelect(event) {
     if (appState.processingInProgress) return;
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-    const firstFileRelativePath = files[0].webkitRelativePath;
-    const rootDirName = firstFileRelativePath.split('/')[0] || 'selected_folder';
-    await processSelectedFolderViaInput(files, rootDirName);
-    if (elements.folderInput) elements.folderInput.value = '';
+    try {
+        const handle = await window.showDirectoryPicker();
+        appState.directoryHandle = handle; // Store the handle
+        await verifyAndProcessDirectory(handle);
+    } catch (err) {
+        console.error("Error with directory picker:", err);
+        // This error often happens if the user cancels the dialog, so we don't need a big error message.
+        notificationSystem.showNotification("Directory selection cancelled.", { duration: 2000 });
+    } finally {
+        if (elements.folderInput) elements.folderInput.value = '';
+    }
+}
+
+async function verifyAndProcessDirectory(directoryHandle) {
+    // Verify permissions
+    if (await directoryHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+        if (await directoryHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
+            errorHandler.showError({ name: "PermissionError", message: "Write permission for the folder was denied." });
+            return;
+        }
+    }
+
+    resetUIForProcessing(`Processing '${directoryHandle.name}'...`);
+    appState.processingInProgress = true;
+
+    try {
+        appState.fullScanData = await fileSystem.processDirectoryEntryRecursive(directoryHandle, directoryHandle.name, 0);
+        
+        // ... (The rest of the logic remains the same as before)
+        if (appState.fullScanData.directoryData && elements.treeContainer) {
+             treeView.renderTree(appState.fullScanData.directoryData, elements.treeContainer);
+        } else {
+             throw new Error("processDirectoryEntryRecursive failed to return directoryData or treeContainer missing.");
+        }
+        const allInitiallySelectedPaths = new Set();
+        if(appState.fullScanData.allFilesList) appState.fullScanData.allFilesList.forEach(f => allInitiallySelectedPaths.add(f.path));
+        if(appState.fullScanData.allFoldersList) appState.fullScanData.allFoldersList.forEach(f => allInitiallySelectedPaths.add(f.path));
+
+        appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, allInitiallySelectedPaths);
+        appState.selectionCommitted = true;
+
+        if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'flex';
+        if (elements.visualOutputContainer) elements.visualOutputContainer.style.display = 'flex';
+        if (elements.mainView) elements.mainView.style.display = 'flex';
+        if (elements.treeViewControls) elements.treeViewControls.style.display = 'flex';
+        if (elements.generalActions) elements.generalActions.style.display = 'flex';
+
+        uiManager.activateTab(appState.activeTabId || 'textReportTab');
+        uiManager.refreshAllUI();
+        enableUIControls();
+
+    } catch (err) {
+        console.error("ERROR PROCESSING DIRECTORY:", err);
+        errorHandler.showError(err);
+        showFailedUI("Directory processing failed. Check console and error report.");
+    } finally {
+        if(elements.loader) elements.loader.classList.remove('visible');
+        appState.processingInProgress = false;
+    }
 }
 
 async function processSelectedFolderViaInput(files, rootDirName) {
@@ -497,55 +533,19 @@ function countEmptyDirs(node, rootName) {
 async function handleFileDrop(event) {
     event.preventDefault();
     if (appState.processingInProgress) return;
-    if (elements.dropZone) elements.dropZone.classList.remove('dragover');
-    resetUIForProcessing("Processing dropped folder...");
-    appState.processingInProgress = true;
-    const items = event.dataTransfer.items;
-    if (items && items.length) {
-        const entry = items[0].webkitGetAsEntry();
-        if (entry && entry.isDirectory) {
-            try {
-                appState.fullScanData = await fileSystem.processDirectoryEntryRecursive(entry, entry.name, 0);
-                if (appState.fullScanData.directoryData && elements.treeContainer) {
-                     treeView.renderTree(appState.fullScanData.directoryData, elements.treeContainer);
-                } else {
-                     throw new Error("processDirectoryEntryRecursive failed to return directoryData or treeContainer missing.");
-                }
-                const allInitiallySelectedPaths = new Set();
-                if(appState.fullScanData.allFilesList) appState.fullScanData.allFilesList.forEach(f => allInitiallySelectedPaths.add(f.path));
-                if(appState.fullScanData.allFoldersList) appState.fullScanData.allFoldersList.forEach(f => allInitiallySelectedPaths.add(f.path));
+    elements.dropZone.classList.remove('dragover');
 
-                appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, allInitiallySelectedPaths);
-                appState.selectionCommitted = true;
-
-                if (elements.rightStatsPanel) elements.rightStatsPanel.style.display = 'flex';
-                if (elements.visualOutputContainer && elements.visualOutputContainer.closest('#leftSidebar')) {
-                    elements.visualOutputContainer.style.display = 'flex';
-                }
-                if (elements.mainView) elements.mainView.style.display = 'flex';
-                if (elements.treeViewControls) elements.treeViewControls.style.display = 'flex';
-                if (elements.generalActions) elements.generalActions.style.display = 'flex';
-
-                uiManager.activateTab(appState.activeTabId || 'textReportTab');
-                uiManager.refreshAllUI();
-                enableUIControls();
-
-            } catch (err) {
-                console.error("ERROR PROCESSING DIRECTORY (DROP):", err);
-                errorHandler.showError(err);
-                showFailedUI("Directory processing failed. Check console and error report.");
-            } finally {
-                if(elements.loader) elements.loader.classList.remove('visible');
-                appState.processingInProgress = false;
-            }
-        } else {
-            errorHandler.showError({ name: "InvalidTargetError", message: "Please drop a folder, not an individual file(s)." });
-            if(elements.loader) elements.loader.classList.remove('visible');
-            appState.processingInProgress = false;
+    try {
+        const handle = await event.dataTransfer.items[0].getAsFileSystemHandle();
+        if (handle.kind !== 'directory') {
+            errorHandler.showError({ name: "InvalidTargetError", message: "Please drop a folder, not an individual file." });
+            return;
         }
-    } else {
-        if(elements.loader) elements.loader.classList.remove('visible');
-        appState.processingInProgress = false;
+        appState.directoryHandle = handle; // Store the handle
+        await verifyAndProcessDirectory(handle);
+    } catch (err) {
+        console.error("Error getting file system handle:", err);
+        errorHandler.showError({ name: "PermissionError", message: "Could not access the folder. You may need to grant permission." });
     }
 }
 
@@ -803,7 +803,6 @@ function initApp() {
     errorHandler.initErrorHandlers();
     fileEditor.initFileEditor();
     aiPatcher.initAiPatcher();
-    aiBriefingStudio.initAiBriefingStudio();
     scaffoldImporter.initScaffoldImporter();
     aiDebriefingAssistant.initAiDebriefingAssistant(); // Initialize new module
     uiManager.initTabs(); 

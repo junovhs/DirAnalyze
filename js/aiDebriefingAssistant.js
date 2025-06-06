@@ -4,7 +4,6 @@ import * as notificationSystem from './notificationSystem.js';
 import * as uiManager from './uiManager.js';
 import * as fileSystem from './fileSystem.js';
 import * as reportGenerator from './reportGenerator.js';
-import * as combineMode from './combineMode.js';
 import * as utils from './utils.js';
 import * as fileEditor from './fileEditor.js';
 

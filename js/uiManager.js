@@ -2,7 +2,6 @@
 import { appState, elements } from './main.js';
 import * as statsManager from './statsManager.js';
 import * as reportGenerator from './reportGenerator.js';
-import * as combineMode from './combineMode.js';
 import * as utils from './utils.js';
 import * as fileEditor from './fileEditor.js';
 
@@ -67,13 +66,6 @@ export function activateTab(tabIdToActivate) {
     if (newActiveTabFound) {
         appState.activeTabId = tabIdToActivate;
         // Specific refresh logic for tabs when they become active
-        if (tabIdToActivate === 'combineModeTab') {
-            if (appState.fullScanData && typeof combineMode !== 'undefined' && combineMode.updateCombineModeListDisplay) {
-                combineMode.updateCombineModeListDisplay();
-            } else if (!appState.fullScanData && typeof combineMode !== 'undefined' && combineMode.updateCombineModeListDisplay) {
-                combineMode.updateCombineModeListDisplay(); // Show empty state
-            }
-        }
         // Add more refresh logic for other tabs if needed (e.g., AI Patcher)
     } else if (tabButtons.length > 0 && !appState.fullScanData) {
         // If no specific tab to activate and no project, ensure all are inactive
@@ -102,9 +94,6 @@ export function refreshAllUI() {
         if (elements.fileTypeTableBody) elements.fileTypeTableBody.innerHTML = '<tr><td colspan="3">No data.</td></tr>';
         if (elements.textOutputEl && elements.textReportTab && elements.textReportTab.classList.contains('active')) {
             elements.textOutputEl.textContent = "// NO PROJECT LOADED //";
-        }
-        if (elements.combineModePanel && elements.combineModeTab && elements.combineModeTab.classList.contains('active')) {
-            combineMode.updateCombineModeListDisplay(); // Will show empty notice
         }
         if (elements.aiPatchPanel && elements.aiPatcherTab && elements.aiPatcherTab.classList.contains('active')) {
             if(elements.aiPatchOutputLog) elements.aiPatchOutputLog.textContent = "Load a project and commit selections to use the AI Patcher.";

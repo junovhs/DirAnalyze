@@ -510,16 +510,6 @@ button.action-button {
 button.action-button:hover:not(:disabled) { background-color: var(--button-hover-bg); box-shadow: var(--shadow-small); }
 button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
 
-/* Selected File Items (Combine Mode) */
-.selected-file { padding: 7px 10px; margin-bottom: 3px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; font-family: var(--font-ui);}
-.selected-file:hover { background-color: var(--highlight-bg); }
-.selected-file-name { flex-grow: 1; word-break: break-all; }
-.selected-file-actions { display: flex; gap: 10px; margin-left: 10px; }
-.selected-file-actions span { cursor: pointer; } .selected-file-actions span:hover { color: var(--accent-color); }
-.selected-file.binary-file { opacity: 0.7; }
-.binary-badge { background-color: var(--dim-color); color: var(--panel-bg); font-size: 0.7em; padding: 2px 4px; border-radius: 3px; margin-left: 5px; vertical-align: middle; }
-.binary-summary { font-size: 0.8em; color: var(--dim-color); padding: 8px; border-top: 1px dashed var(--border-color); margin-top: 8px; text-align: center; }
-.binary-summary.warning { color: var(--warning-color); font-weight: bold; }
 .empty-notice { text-align: center; padding: 20px; color: var(--dim-color); font-size: 0.9em; flex-grow: 1; display:flex; align-items:center; justify-content:center;}
 
 

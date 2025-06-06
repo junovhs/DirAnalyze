@@ -1,4 +1,5 @@
 // --- FILE: diranalyze/js/fileEditor.js --- //
+let saveTimeout = null;
 import { appState, elements, resetUIForProcessing, enableUIControls } from './main.js';
 import * as fileSystem from './fileSystem.js';
 import * as notificationSystem from './notificationSystem.js';
@@ -119,19 +120,33 @@ function handleEditorChange(cmInstance) {
     if (!appState.currentEditingFile) return;
     const filePath = appState.currentEditingFile.path;
     const newContent = cmInstance.getValue();
-    const fileState = editedFiles.get(filePath);
 
+    const fileState = editedFiles.get(filePath);
     if (fileState) {
         fileState.content = newContent;
         editedFiles.set(filePath, fileState);
     } else {
-        // This case should ideally not happen if openFileInEditor initializes the map entry
         editedFiles.set(filePath, {
             content: newContent,
-            originalContent: appState.currentEditingFile.originalContent, // Stored during open
+            originalContent: appState.currentEditingFile.originalContent,
             isPatched: false
         });
     }
+
+    // Debounce the save operation
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+        if (appState.directoryHandle) {
+            fileSystem.writeFileContent(appState.directoryHandle, filePath, newContent)
+                .then(() => {
+                    notificationSystem.showNotification(`Saved: ${filePath}`, { duration: 1500 });
+                })
+                .catch(err => {
+                    // Error is already shown by writeFileContent, but we can log here too.
+                    console.error(`Implicit save failed for ${filePath}.`);
+                });
+        }
+    }, 750); // Save 750ms after user stops typing
 }
 
 export function closeEditor() {
