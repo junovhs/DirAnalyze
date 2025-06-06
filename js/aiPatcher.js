@@ -1,4 +1,3 @@
-// --- FILE: js/aiPatcher.js --- //
 import { appState, elements } from './main.js';
 import * as fileSystem from 'fileSystem';
 import * as fileEditor from 'fileEditor';
@@ -264,9 +263,9 @@ function closeDiffModalAndProceed(applyChange) {
                 notificationSystem.showNotification(`File ${filePath} created.`, {duration: 2500});
              }
         }
-        fileEditor.setEditedContent(filePath, patchedContent, true);
+        fileEditor.updateFileInEditorCache(filePath, patchedContent, undefined, true);
         if (appState.currentEditingFile && appState.currentEditingFile.path === filePath) {
-            fileEditor.setEditorStatus('patched_unsaved');
+            // No status to set anymore
         }
         if (appState.isCombineMode) combineMode.updateCombineModeListDisplay(); // Ensure combine mode reflects it
     } else {

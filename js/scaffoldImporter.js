@@ -1,5 +1,5 @@
 // --- FILE: loomdir/js/scaffoldImporter.js ---
-import { appState, elements, resetUIForProcessing, enableUIControls } from './main.js';
+import { appState, elements, resetUIForProcessing, enableUIControls, showFailedUI } from './main.js';
 import * as treeView from './treeView.js';
 import * as uiManager from './uiManager.js';
 import * as notificationSystem from './notificationSystem.js';
@@ -80,13 +80,13 @@ async function processScaffoldJsonInput() {
             const content = fileContentsMap.get(fileInfo.path);
             if (content !== undefined) {
                 fileInfo.size = content.length; // Update size based on actual content
-                fileEditor.setEditedContent(fileInfo.path, content, false); // Store content
+                fileEditor.updateFileInEditorCache(fileInfo.path, content, content, false); // Store content
             } else {
                 // This case means a file was in structureString but not in fileContents.
                 // It will be treated as an empty file.
                 console.warn(`[Scaffold] File "${fileInfo.path}" was in structure string but not in fileContents. Creating as empty.`);
                 fileInfo.size = 0;
-                fileEditor.setEditedContent(fileInfo.path, "", false);
+                fileEditor.updateFileInEditorCache(fileInfo.path, "", "", false);
             }
         });
 

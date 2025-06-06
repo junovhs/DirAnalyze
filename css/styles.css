@@ -666,10 +666,6 @@ button.action-button:disabled { opacity: var(--disabled-opacity); cursor: not-al
     background-color: var(--panel-bg);
     flex-shrink: 0;
 }
-.editor-status { padding: 3px 7px; border-radius: var(--border-radius-small); font-size: 0.8em; margin: 0 10px; display: inline-block; min-width: 100px; text-align: center; }
-.status-saved { color: var(--status-saved); background-color: #e6f9e9; border: 1px solid #c1e8c5;}
-.status-unsaved { color: var(--status-unsaved); font-weight: bold; background-color: #fff8e1; border: 1px solid #ffecb3;}
-.status-loading { color: var(--status-loading); } .status-error { color: var(--status-error); background-color: #ffebee; border: 1px solid #ffcdd2;} .status-unchanged { color: var(--status-unchanged); }
 .editor-actions { display: flex; gap: 10px; }
 .editor-button { padding: 5px 10px; background-color: var(--button-bg); color: var(--button-text); border: 1px solid var(--border-color); border-radius: var(--border-radius-small); cursor: pointer; font-size: 0.85em; font-family:var(--font-ui); }
 .editor-button:hover:not(:disabled) { background-color: var(--button-hover-bg); } .editor-button:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }

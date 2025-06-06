@@ -681,7 +681,7 @@ function disableUIControls() {
     if(elements.mainViewTabs) elements.mainViewTabs.querySelectorAll('.tab-button').forEach(btn => btn.disabled = true);
 }
 
-function showFailedUI(message = "SCAN FAILED - SEE ERROR REPORT") {
+export function showFailedUI(message = "SCAN FAILED - SEE ERROR REPORT") {
     if(elements.textOutputEl && elements.textReportTab && elements.textReportTab.contains(elements.textOutputEl)) {
         elements.textOutputEl.textContent = message;
         if (typeof uiManager.activateTab === 'function') uiManager.activateTab('textReportTab');
