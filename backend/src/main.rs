@@ -1,8 +1,13 @@
 use axum::{
-    extract::State,
-    routing::{get_service, post},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
+    },
+    response::IntoResponse,
+    routing::{get, get_service, post},
     Json, Router,
 };
+use futures_util::{sink::SinkExt, stream::StreamExt};
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
@@ -18,15 +23,18 @@ async fn main() {
     let assets_dir = std::path::PathBuf::from("..");
 
     let app = Router::new()
-        // Add our new API route.
+        // API route for LLM proxy
         .route("/api/llm_proxy", post(llm_proxy_handler))
-        // Keep the static file server as a fallback.
+        // WebSocket route
+        .route("/ws", get(websocket_handler))
+        // Static file server as a fallback
         .fallback_service(get_service(ServeDir::new(assets_dir)))
         // Make the HTTP client available to our handlers.
         .with_state(client);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8000));
     println!("--> DirAnalyze backend serving on http://{}", addr);
+    println!("--> WebSocket endpoint available at ws://{}/ws", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
@@ -44,7 +52,7 @@ async fn llm_proxy_handler(
             return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
-    
+
     let api_url = "https://api.openai.com/v1/chat/completions";
 
     println!("--> Forwarding request to LLM API...");
@@ -60,7 +68,10 @@ async fn llm_proxy_handler(
         Ok(res) => {
             if res.status().is_success() {
                 println!("--> Success from LLM API");
-                let body: Value = res.json().await.unwrap_or_else(|_| json!({"error": "Failed to parse LLM response"}));
+                let body: Value = res
+                    .json()
+                    .await
+                    .unwrap_or_else(|_| json!({"error": "Failed to parse LLM response"}));
                 Ok(Json(body))
             } else {
                 let status = res.status();
@@ -74,4 +85,46 @@ async fn llm_proxy_handler(
             Err(axum::http::StatusCode::BAD_GATEWAY)
         }
     }
+}
+
+// This function will handle WebSocket upgrade requests.
+async fn websocket_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
+    ws.on_upgrade(handle_socket)
+}
+
+// This function will handle the actual WebSocket connection.
+async fn handle_socket(mut socket: WebSocket) {
+    println!("--> WebSocket client connected");
+    // Simple echo loop
+    while let Some(msg) = socket.recv().await {
+        match msg {
+            Ok(Message::Text(t)) => {
+                println!("--> Received text message: {}", t);
+                // Echo the message back
+                if socket.send(Message::Text(format!("You said: {}", t))).await.is_err() {
+                    println!("--> WebSocket client disconnected");
+                    break;
+                }
+            }
+            Ok(Message::Binary(b)) => {
+                println!("--> Received binary message: {} bytes", b.len());
+                if socket.send(Message::Binary(b)).await.is_err() {
+                    println!("--> WebSocket client disconnected");
+                    break;
+                }
+            }
+            Ok(Message::Close(_)) => {
+                println!("--> WebSocket client sent close message");
+                break;
+            }
+            Err(e) => {
+                println!("--> WebSocket error: {}", e);
+                break;
+            }
+            _ => { // Ping, Pong, etc.
+                // axum handles these automatically
+            }
+        }
+    }
+    println!("--> WebSocket connection closed");
 }
