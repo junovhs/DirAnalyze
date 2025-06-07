@@ -10,7 +10,7 @@
 - **MIT licence** – fork it, remix it, just keep the header
 
 > **Security advisory** DirAnalyze is **not sandboxed**. You are editing your local file system directly. Run trusted code only.
-> **Status** Alpha: The core UI workflow is now functional for live local development. Backend is in planning.
+> **Status** Alpha: The core UI workflow is functional. The Rust backend is in progress.
 
 ---
 
@@ -26,29 +26,25 @@
 
 ---
 
-## 2 Current state (2025-06-05)
+## 2 Current state (2025-06-06)
 
 | Component                      | State                | Notes                                                      |
 |--------------------------------|----------------------|------------------------------------------------------------|
-| Backend (Go/Rust/Zig)          | not started          | Core logic still pending.                                  |
-| Browser UI (HTML/JS/CSS)       | **Functional Prototype** | Now uses the File System Access API for live local editing.|
+| Backend (Rust)                 | **in progress**      | Basic web server and LLM proxy are functional.             |
+| Browser UI (HTML/JS/CSS)       | Functional Prototype | Uses the File System Access API for live local editing.    |
 | Hierarchical Sketch            | spec drafted         | Parsing and indexing logic not yet implemented.            |
 | AI Patcher Workflow            | functional           | Can apply CAPCA patches directly to the local disk.        |
 | AI Debriefing Assistant        | functional           | Core workflow for packaging context is implemented.        |
-| Secret Gate (TruffleHog)       | CLI stubbed          | Not yet integrated into the workflow.                      |
-| Deterministic Log              | schema drafted       | Not yet implemented.                                       |
 
 ---
 
 ## 3 Quick start
 
-1.  Clone the repository.
-2.  Serve the root directory via a local web server (e.g., `python -m http.server`).
-3.  Open `http://localhost:8000` (or your server's address) in a modern browser (Chrome, Edge).
-4.  Drop your project folder onto the UI and grant read/write permissions.
-5.  Start coding with the help of the AI Patcher and Debriefing Assistant.
-
-> Note: The single-binary distribution (`./diranalyze serve ...`) is not yet implemented.
+1.  Clone the repository and install the [Rust toolchain](https://rustup.rs/).
+2.  Install the required [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
+3.  Navigate to the `backend` directory and run `cargo run`.
+4.  Open `http://127.0.0.1:8000` in a modern browser (Chrome, Edge).
+5.  Drop your project folder onto the UI and grant read/write permissions.
 
 ---
 
@@ -57,14 +53,12 @@
 | Version | Focus                                                  | State           |
 | ------- | ------------------------------------------------------ | --------------- |
 | 0.1     | Functional UI Prototype & Live Local Editing           | **done**        |
-| 0.2     | Core Backend Bootstrap & Sketch Indexing               | planned         |
+| 0.2     | Core Backend Bootstrap & Sketch Indexing               | **in progress** |
 | 0.3     | Retrieval Benchmark & CLI Polish                       | planned         |
-| 0.4     | Embedded Browser UI                                    | planned         |
 
 Full details in [`docs/roadmap.md`](./docs/roadmap.md).
 
 ---
-
 ## 5 Design principles
 
 1.  **Own the stack** – every byte needed to rebuild lives in the repo
@@ -76,11 +70,13 @@ Full details in [`docs/roadmap.md`](./docs/roadmap.md).
 ---
 
 ## 6 Planned architecture
+'''
 Browser UI ── fetch/ws ──┐
 ▼
 DirAnalyze binary (HTTP+WS, index, log, proxy)
 ▲
 external LLM HTTPS│ optional runners (zig cc, swiftc…)
+'''
 *Diagram represents target design; not yet implemented.*
 
 ---
