@@ -1,14 +1,17 @@
-import { appState, elements } from './main.js';
 import * as fileSystem from 'fileSystem';
 import * as fileEditor from 'fileEditor';
 import * as notificationSystem from 'notificationSystem';
 import * as errorHandler from 'errorHandler';
-import * as utils from './utils.js';
-import * as treeView from './treeView.js'; // IMPORT treeView
+import * as utils from 'utils';
+import * as treeView from 'treeView';
+
+// Module-level variables to hold dependencies injected by main.js
+let _appState;
+let _elements;
 
 // Holds the queue of patch operations to be reviewed one by one
 let patchQueue = [];
-let currentPatchBeingReviewed = null; // { filePath, originalContent, patchedContent, patchOp, isNewFile, log }
+let currentPatchBeingReviewed = null;
 
 function parsePatchInstructions(patchJsonString) {
     try {
@@ -20,6 +23,7 @@ function parsePatchInstructions(patchJsonString) {
             if (typeof op.file !== 'string' || typeof op.operation !== 'string') {
                 throw new Error("Each patch must have 'file' and 'operation' string properties.");
             }
+            // Add more detailed validation for each operation's required fields if necessary
             switch (op.operation) {
                 case 'create_file_with_content':
                     if (typeof op.newText !== 'string') {
@@ -32,15 +36,20 @@ function parsePatchInstructions(patchJsonString) {
                     if (typeof op.anchorText !== 'string') {
                         throw new Error(`Operation '${op.operation}' requires 'anchorText'.`);
                     }
+                    // For insert, segmentToAffect might not be needed
                     if (op.operation !== 'insert_text_after_anchor' && typeof op.segmentToAffect !== 'string') {
                         throw new Error(`Operation '${op.operation}' requires 'segmentToAffect'.`);
                     }
+                    // For delete, newText is not needed
                     if (op.operation !== 'delete_segment_after_anchor' && typeof op.newText !== 'string') {
                         throw new Error(`Operation '${op.operation}' requires 'newText'.`);
                     }
                     break;
                 default:
-                    throw new Error(`Unsupported operation type: '${op.operation}'.`);
+                    // Allow other ops but don't validate them here, they might be future additions
+                    // Or, uncomment to strictly validate:
+                    // throw new Error(`Unsupported operation type: '${op.operation}'.`);
+                    break;
             }
         });
         return patches;
@@ -54,23 +63,28 @@ function parsePatchInstructions(patchJsonString) {
 }
 
 function findRobustAnchorIndex(content, anchorText, originalLineHint = 1, windowLines = 10) {
-    if (!anchorText || anchorText.length === 0) return 0;
+    if (!anchorText || anchorText.length === 0) return 0; // If no anchor, treat as inserting at the beginning.
     const normalizedContent = content.replace(/\r\n/g, "\n");
     const normalizedAnchorText = anchorText.replace(/\r\n/g, "\n");
     const contentLines = normalizedContent.split('\n');
     const anchorLines = normalizedAnchorText.split('\n');
     const firstAnchorLine = anchorLines[0];
-    const hintLineIndex = originalLineHint - 1;
+    const hintLineIndex = originalLineHint > 0 ? originalLineHint - 1 : 0; // Ensure non-negative
+
     const searchStartLine = Math.max(0, hintLineIndex - windowLines);
-    const searchEndLine = Math.min(contentLines.length, hintLineIndex + windowLines + anchorLines.length);
+    // Ensure searchEndLine doesn't go beyond contentLines.length - anchorLines.length + 1
+    // to avoid out-of-bounds access when matching multi-line anchors.
+    const searchEndLine = Math.min(contentLines.length - anchorLines.length + 1, hintLineIndex + windowLines + 1);
+
 
     for (let i = searchStartLine; i < searchEndLine; i++) {
         if (contentLines[i] !== undefined && contentLines[i].includes(firstAnchorLine)) {
-            if (anchorLines.length === 1) {
+            if (anchorLines.length === 1) { // Single-line anchor
                 let charOffset = 0;
-                for (let k = 0; k < i; k++) charOffset += contentLines[k].length + 1;
+                for (let k = 0; k < i; k++) charOffset += contentLines[k].length + 1; // +1 for newline
                 return charOffset + contentLines[i].indexOf(firstAnchorLine);
             }
+            // Multi-line anchor check
             let fullMatch = true;
             for (let j = 1; j < anchorLines.length; j++) {
                 if ((i + j) >= contentLines.length || contentLines[i + j] !== anchorLines[j]) {
@@ -80,12 +94,16 @@ function findRobustAnchorIndex(content, anchorText, originalLineHint = 1, window
             }
             if (fullMatch) {
                 let charOffset = 0;
-                for (let k = 0; k < i; k++) charOffset += contentLines[k].length + 1;
+                for (let k = 0; k < i; k++) charOffset += contentLines[k].length + 1; // +1 for newline
                 return charOffset + contentLines[i].indexOf(firstAnchorLine);
             }
         }
     }
+    // Fallback to global search if windowed search fails
     const globalIndex = normalizedContent.indexOf(normalizedAnchorText);
+    if (globalIndex !== -1) {
+        // console.warn(`Anchor "${shorten(normalizedAnchorText)}" not found near line ${originalLineHint}, but found globally.`);
+    }
     return globalIndex;
 }
 
@@ -97,7 +115,7 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
     const basePathForState = filePath;
 
     if (patchOp.operation === 'create_file_with_content') {
-        const existingFile = appState.fullScanData?.allFilesList.find(f => f.path === basePathForState);
+        const existingFile = _appState.fullScanData?.allFilesList.find(f => f.path === basePathForState);
         if (existingFile || currentBatchFileStates.has(basePathForState)) {
             return { success: false, log: `  - Op: create_file. Error: File '${basePathForState}' already exists (or was created in this batch).`, originalContent: "", patchedContent: "" };
         }
@@ -111,14 +129,17 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
 
     if (currentBatchFileStates.has(basePathForState)) {
         contentToProcess = currentBatchFileStates.get(basePathForState);
-        rawOriginalContent = contentToProcess; 
-    } else if (fileEditor.hasEditedContent(basePathForState)) {
+        rawOriginalContent = contentToProcess; // For diffing, this is the most current "original"
+    } else if (fileEditor.getEditedContent(basePathForState) !== undefined) {
         rawOriginalContent = fileEditor.getEditedContent(basePathForState);
         contentToProcess = rawOriginalContent.replace(/\r\n/g, "\n");
     } else {
-        const fileData = appState.fullScanData?.allFilesList.find(f => f.path === basePathForState);
+        const fileData = _appState.fullScanData?.allFilesList.find(f => f.path === basePathForState);
         if (!fileData) {
-            return { success: false, log: `  - Op: ${patchOp.operation}. Error: File '${basePathForState}' not found.`, originalContent: "", patchedContent: "" };
+            return { success: false, log: `  - Op: ${patchOp.operation}. Error: File '${basePathForState}' not found in project scan.`, originalContent: "", patchedContent: "" };
+        }
+        if (!fileData.entryHandle && !isNewFile) { // Check if handle is missing for an existing file op
+            return { success: false, log: `  - Op: ${patchOp.operation}. Error: No file handle for existing file '${basePathForState}' (likely scaffolded, not saved).`, originalContent: "", patchedContent: "" };
         }
         try {
             rawOriginalContent = await fileSystem.readFileContent(fileData.entryHandle, basePathForState);
@@ -127,9 +148,9 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
             return { success: false, log: `  - Error reading original content for '${basePathForState}': ${e.message}`, originalContent: "", patchedContent: "" };
         }
     }
-    
-    const originalContentForDiff = contentToProcess;
-    let proposedContentNormalized = contentToProcess;
+
+    const originalContentForDiff = contentToProcess; // This is normalized content
+    let proposedContentNormalized = contentToProcess; // Start with current content
 
     const normalizedAnchorText = patchOp.anchorText.replace(/\r\n/g, "\n");
     const normalizedSegmentToAffect = patchOp.segmentToAffect ? patchOp.segmentToAffect.replace(/\r\n/g, "\n") : "";
@@ -151,9 +172,10 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
                                         normalizedNewText +
                                         contentToProcess.substring(afterAnchorIndex);
             logEntry = `  - Op: insert_text_after_anchor. Success: Inserted text after anchor "${shorten(normalizedAnchorText)}".`;
-        } else { 
+        } else {
             const segmentStartIndex = contentToProcess.indexOf(normalizedSegmentToAffect, afterAnchorIndex);
             const leniencyChars = patchOp.leniencyChars === undefined ? 5 : patchOp.leniencyChars;
+
             if (normalizedSegmentToAffect.length > 0 && (segmentStartIndex === -1 || segmentStartIndex > afterAnchorIndex + leniencyChars )) {
                 const foundInstead = contentToProcess.substring(afterAnchorIndex, afterAnchorIndex + Math.max(normalizedSegmentToAffect.length, 20) + 20);
                 logEntry = `  - Op: ${patchOp.operation}. Error: Segment "${shorten(normalizedSegmentToAffect)}" not found sufficiently close after anchor "${shorten(normalizedAnchorText)}". Expected around index ${afterAnchorIndex} (within ${leniencyChars} chars), first match at ${segmentStartIndex}. Content after anchor: "${shorten(foundInstead, 40)}..."`;
@@ -161,7 +183,7 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
             }
 
             if (patchOp.operation === 'replace_segment_after_anchor') {
-                 if (normalizedSegmentToAffect.length === 0 && normalizedNewText.length > 0) {
+                 if (normalizedSegmentToAffect.length === 0 && normalizedNewText.length > 0) { // Treat as insert if segment is empty
                     proposedContentNormalized = contentToProcess.substring(0, afterAnchorIndex) +
                                                 normalizedNewText +
                                                 contentToProcess.substring(afterAnchorIndex);
@@ -171,11 +193,11 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
                                                 normalizedNewText +
                                                 contentToProcess.substring(segmentStartIndex + normalizedSegmentToAffect.length);
                     logEntry = `  - Op: replace_segment_after_anchor. Success: Replaced segment "${shorten(normalizedSegmentToAffect)}".`;
-                 } else if (normalizedSegmentToAffect.length > 0 && segmentStartIndex === -1) {
+                 } else if (normalizedSegmentToAffect.length > 0 && segmentStartIndex === -1) { // segment not found
                     const foundInstead = contentToProcess.substring(afterAnchorIndex, afterAnchorIndex + Math.max(normalizedSegmentToAffect.length, 20) + 20);
                     logEntry = `  - Op: ${patchOp.operation}. Error: Non-empty segment "${shorten(normalizedSegmentToAffect)}" not found close after anchor "${shorten(normalizedAnchorText)}". Content after anchor: "${shorten(foundInstead, 40)}..."`;
                     return { success: false, log: logEntry, originalContent: originalContentForDiff, patchedContent: proposedContentNormalized };
-                 } else { 
+                 } else { // segment and newText are empty
                     logEntry = `  - Op: replace_segment_after_anchor. Info: 'segmentToAffect' and 'newText' were empty. No change.`;
                  }
             } else if (patchOp.operation === 'delete_segment_after_anchor') {
@@ -186,7 +208,6 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
                                                 contentToProcess.substring(segmentStartIndex + normalizedSegmentToAffect.length);
                     logEntry = `  - Op: delete_segment_after_anchor. Success: Deleted segment "${shorten(normalizedSegmentToAffect)}".`;
                 } else if (normalizedSegmentToAffect.length > 0 && segmentStartIndex === -1) {
-                    // Corrected variable name below: anchorIndex to afterAnchorIndex
                     const foundInstead = contentToProcess.substring(afterAnchorIndex, afterAnchorIndex + Math.max(normalizedSegmentToAffect.length, 20) + 20);
                     logEntry = `  - Op: ${patchOp.operation}. Error: Non-empty segment "${shorten(normalizedSegmentToAffect)}" not found close after anchor "${shorten(normalizedAnchorText)}". Content after anchor: "${shorten(foundInstead,40)}..."`;
                     return { success: false, log: logEntry, originalContent: originalContentForDiff, patchedContent: proposedContentNormalized };
@@ -201,28 +222,29 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
     if (proposedContentNormalized !== originalContentForDiff) {
         currentBatchFileStates.set(basePathForState, proposedContentNormalized);
     }
-    return { success: true, log: logEntry, originalContent: originalContentForDiff, patchedContent: proposedContentNormalized, isNewFile };
+    // Make sure to use originalContent: rawOriginalContent (unnormalized) if that's what the diff needs
+    return { success: true, log: logEntry, originalContent: originalContentForDiff, patchedContent: proposedContentNormalized, isNewFile: isNewFile };
 }
 
 function showNextPatchInModal() {
     if (patchQueue.length === 0) {
-        elements.aiPatchOutputLog.textContent += "\n\nAll patches reviewed.";
+        _elements.aiPatchOutputLog.textContent += "\n\nAll patches reviewed.";
         notificationSystem.showNotification("All patches reviewed.", { duration: 3000 });
         currentPatchBeingReviewed = null;
         return;
     }
     currentPatchBeingReviewed = patchQueue.shift();
     const { filePath, originalContent, patchedContent, patchOp } = currentPatchBeingReviewed;
-    const dmp = new window.diff_match_patch(); // Ensure it's using the global
-    elements.diffFilePath.textContent = `${filePath} (${patchOp.operation})`;
+    const dmp = new window.diff_match_patch();
+    _elements.diffFilePath.textContent = `${filePath} (${patchOp.operation})`;
     if (patchOp.operation === 'create_file_with_content') {
-        elements.diffOutputContainer.innerHTML = `<p><b>PROPOSED NEW FILE CONTENT:</b></p><pre style="background:#e6ffe6; padding:5px;">${escapeHtml(patchedContent)}</pre>`;
+        _elements.diffOutputContainer.innerHTML = `<p><b>PROPOSED NEW FILE CONTENT:</b></p><pre style="background:#e6ffe6; padding:5px;">${escapeHtml(patchedContent)}</pre>`;
     } else {
         const diff = dmp.diff_main(originalContent, patchedContent);
         dmp.diff_cleanupSemantic(diff);
-        elements.diffOutputContainer.innerHTML = dmp.diff_prettyHtml(diff);
+        _elements.diffOutputContainer.innerHTML = dmp.diff_prettyHtml(diff);
     }
-    elements.aiPatchDiffModal.style.display = 'block';
+    _elements.aiPatchDiffModal.style.display = 'block';
 }
 
 async function closeDiffModalAndProceed(applyChange) {
@@ -231,12 +253,20 @@ async function closeDiffModalAndProceed(applyChange) {
 
     if (applyChange) {
         try {
-            // First, write the change to the local file system
-            await fileSystem.writeFileContent(appState.directoryHandle, filePath, patchedContent);
-
-            // If write is successful, then update the UI and in-memory state
-            elements.aiPatchOutputLog.textContent += `\nUser ACTION: Applied & Saved - ${filePath}\n  Details: ${log || "Content set."}\n`;
-            notificationSystem.showNotification(`Applied and saved: ${filePath}`, { duration: 2000 });
+            // If it's a scaffolded project (no directoryHandle), we can't write to disk yet.
+            // We'll update the editor cache, which is the source of truth for scaffolded files.
+            if (!_appState.directoryHandle && isNewFile) {
+                 _elements.aiPatchOutputLog.textContent += `\nUser ACTION: Staged for new file - ${filePath}\n  Details: ${log || "Content set."}\n`;
+                 notificationSystem.showNotification(`Staged new file: ${filePath}`, { duration: 2000 });
+            } else if (!_appState.directoryHandle && !isNewFile) {
+                 _elements.aiPatchOutputLog.textContent += `\nUser ACTION: Staged change for - ${filePath}\n  Details: ${log || "Content set."}\n`;
+                 notificationSystem.showNotification(`Staged change for: ${filePath}`, { duration: 2000 });
+            } else {
+                // For projects loaded from disk, write to file system
+                await fileSystem.writeFileContent(_appState.directoryHandle, filePath, patchedContent);
+                _elements.aiPatchOutputLog.textContent += `\nUser ACTION: Applied & Saved - ${filePath}\n  Details: ${log || "Content set."}\n`;
+                notificationSystem.showNotification(`Applied and saved: ${filePath}`, { duration: 2000 });
+            }
 
             if (isNewFile) {
                 const newFileEntry = {
@@ -245,66 +275,67 @@ async function closeDiffModalAndProceed(applyChange) {
                     type: 'file',
                     size: patchedContent.length,
                     extension: utils.getFileExtension(filePath),
-                    depth: (filePath.split('/').length - 1) - (appState.directoryHandle.name.split('/').length -1),
-                    entryHandle: await fileSystem.getFileHandleFromPath(appState.directoryHandle, filePath) // A new function we might need
+                    depth: (filePath.split('/').length -1) - (_appState.fullScanData.directoryData.path.split('/').length -1), // Adjust depth calculation
+                    entryHandle: _appState.directoryHandle ? await fileSystem.getFileHandleFromPath(_appState.directoryHandle, filePath) : null
                 };
-                
-                // Add to the master list of all files and update tree
-                appState.fullScanData.allFilesList.push(newFileEntry);
-                if (typeof treeView.addFileToTree === 'function') {
+
+                _appState.fullScanData.allFilesList.push(newFileEntry);
+                if (typeof treeView.addFileToTree === 'function') { // Ensure treeView has this function
                     treeView.addFileToTree(newFileEntry);
                 }
             }
-
-            // Update editor cache
             fileEditor.updateFileInEditorCache(filePath, patchedContent, originalContent, true);
 
-            if (appState.currentEditingFile && appState.currentEditingFile.path === filePath) {
-                 // The editor content is already updated by updateFileInEditorCache
+            if (_appState.currentEditingFile && _appState.currentEditingFile.path === filePath) {
+                // Editor content already updated by updateFileInEditorCache
             }
         } catch (err) {
-            // If writing to disk fails, don't proceed with the next patch.
-            notificationSystem.showNotification(`ERROR: Failed to save ${filePath}. Patch not applied.`, { duration: 4000 });
-            // The error is already shown by writeFileContent
-            return; // Stop processing
+            notificationSystem.showNotification(`ERROR: Failed to process patch for ${filePath}. Patch not applied. See console.`, { duration: 4000 });
+            console.error(`Error applying/saving patch for ${filePath}:`, err);
+            // Do not proceed to next patch if one fails this badly.
+            _elements.aiPatchDiffModal.style.display = 'none'; // Still close current modal
+            currentPatchBeingReviewed = null;
+            return;
         }
     } else {
-        elements.aiPatchOutputLog.textContent += `\nUser ACTION: Skipped - ${filePath} for operation ${patchOp.operation}.\n`;
+        _elements.aiPatchOutputLog.textContent += `\nUser ACTION: Skipped - ${filePath} for operation ${patchOp.operation}.\n`;
     }
 
-    elements.aiPatchDiffModal.style.display = 'none';
+    _elements.aiPatchDiffModal.style.display = 'none';
     currentPatchBeingReviewed = null;
-    showNextPatchInModal(); // Move to the next patch in the queue
+    showNextPatchInModal();
 }
 
 export async function processPatches(patchInstructions) {
     if (!patchInstructions || patchInstructions.length === 0) {
-        elements.aiPatchOutputLog.textContent = "No patch instructions provided."; return;
+        _elements.aiPatchOutputLog.textContent = "No patch instructions provided."; return;
     }
-    const hasNonCreateOps = patchInstructions.some(p => p.operation !== 'create_file_with_content');
-    if (hasNonCreateOps && (!appState.fullScanData || !appState.fullScanData.allFilesList)) {
-        elements.aiPatchOutputLog.textContent = "Error: No directory scanned or file list unavailable. Load a directory first.";
+    // For scaffolded projects, fullScanData might exist but entryHandles will be null.
+    // The check should be more about if fullScanData itself is null.
+    if (!_appState.fullScanData || !_appState.fullScanData.allFilesList) {
+        _elements.aiPatchOutputLog.textContent = "Error: No project loaded or file list unavailable. Load a project first.";
         return;
     }
-    elements.aiPatchOutputLog.textContent = "Preparing patches for review...\n";
+    _elements.aiPatchOutputLog.textContent = "Preparing patches for review...\n";
     patchQueue = [];
     let initialLog = "";
     let successfullyPreparedCount = 0;
-    let currentBatchFileStates = new Map();
+    let currentBatchFileStates = new Map(); // Used to track in-flight changes within this batch
+
     for (const patchOp of patchInstructions) {
         const filePath = patchOp.file;
         const result = await calculateProposedChange(filePath, patchOp, currentBatchFileStates);
         initialLog += `\nFile: ${filePath} (${patchOp.operation})\n${result.log}\n`;
-        if (result.success || (patchOp.operation === 'create_file_with_content' && result.success)) {
+        if (result.success) {
             if (patchOp.operation === 'create_file_with_content' || result.originalContent !== result.patchedContent) {
-                patchQueue.push({ ...result, filePath, patchOp }); // Ensure all relevant fields (isNewFile etc) from result are passed
+                patchQueue.push({ ...result, filePath, patchOp });
                 successfullyPreparedCount++;
             } else {
                  initialLog += "  - Info: No effective change proposed by this operation (content identical).\n";
             }
         }
     }
-    elements.aiPatchOutputLog.textContent = initialLog + `\n--- Prepared ${successfullyPreparedCount} patches for review. ---\n`;
+    _elements.aiPatchOutputLog.textContent = initialLog + `\n--- Prepared ${successfullyPreparedCount} patches for review. ---\n`;
     if (patchQueue.length > 0) {
         showNextPatchInModal();
     } else {
@@ -321,36 +352,38 @@ function shorten(text, maxLength = 30) {
 function escapeHtml(unsafe) {
     if (typeof unsafe !== 'string') return '';
     return unsafe
-         .replace(/&/g, "&") // Corrected from &
-         .replace(/</g, "<")  // Corrected from <
-         .replace(/>/g, ">")  // Corrected from >
+         .replace(/&/g, "&")
+         .replace(/</g, "<")
+         .replace(/>/g, ">")
          .replace(/"/g, "&quot;")
-         .replace(/'/g, "'"); // Corrected from '
+         .replace(/'/g, "'");
 }
 
-export function initAiPatcher() {
-    elements.applyAiPatchBtn.addEventListener('click', () => {
-        const patchJson = elements.aiPatchInput.value;
+export function initAiPatcher(mainAppState, mainElements) {
+    _appState = mainAppState;
+    _elements = mainElements;
+
+    _elements.applyAiPatchBtn.addEventListener('click', () => {
+        const patchJson = _elements.aiPatchInput.value;
         if (!patchJson.trim()) {
             notificationSystem.showNotification("Patch input is empty.", {duration: 3000});
-            elements.aiPatchOutputLog.textContent = "Patch input empty.";
+            _elements.aiPatchOutputLog.textContent = "Patch input empty.";
             return;
         }
         const parsedInstructions = parsePatchInstructions(patchJson);
         if (parsedInstructions) {
             processPatches(parsedInstructions);
         } else {
-             elements.aiPatchOutputLog.textContent = "Failed to parse CAPCA patches. Check format/errors.";
+             _elements.aiPatchOutputLog.textContent = "Failed to parse CAPCA patches. Check format/errors.";
         }
     });
-    elements.closeAiPatchDiffModal.addEventListener('click', () => closeDiffModalAndProceed(false));
-    elements.confirmApplyPatchChanges.addEventListener('click', () => closeDiffModalAndProceed(true));
-    elements.skipPatchChanges.addEventListener('click', () => closeDiffModalAndProceed(false));
-    elements.cancelAllPatchChanges.addEventListener('click', () => {
+    _elements.closeAiPatchDiffModal.addEventListener('click', () => closeDiffModalAndProceed(false));
+    _elements.confirmApplyPatchChanges.addEventListener('click', () => closeDiffModalAndProceed(true));
+    _elements.skipPatchChanges.addEventListener('click', () => closeDiffModalAndProceed(false));
+    _elements.cancelAllPatchChanges.addEventListener('click', () => {
         patchQueue = [];
         closeDiffModalAndProceed(false); // Closes current modal without applying
-        elements.aiPatchOutputLog.textContent += "\n\nUser ACTION: Cancelled all remaining patches.\n";
+        _elements.aiPatchOutputLog.textContent += "\n\nUser ACTION: Cancelled all remaining patches.\n";
         notificationSystem.showNotification("All remaining patches cancelled.", { duration: 3000 });
     });
 }
-// --- ENDFILE: js/aiPatcher.js --- //

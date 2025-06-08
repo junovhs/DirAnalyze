@@ -70,13 +70,13 @@ Full details in [`docs/roadmap.md`](./docs/roadmap.md).
 ---
 
 ## 6 Planned architecture
-'''
+```
 Browser UI ── fetch/ws ──┐
 ▼
 DirAnalyze binary (HTTP+WS, index, log, proxy)
 ▲
 external LLM HTTPS│ optional runners (zig cc, swiftc…)
-'''
+```
 *Diagram represents target design; not yet implemented.*
 
 ---

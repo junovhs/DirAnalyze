@@ -7,7 +7,7 @@ use axum::{
     routing::{get, get_service, post},
     Json, Router,
 };
-use futures_util::{sink::SinkExt, stream::StreamExt};
+// Removed the 'use futures_util::{...}' line as it's not directly needed and causes warnings.
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
