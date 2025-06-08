@@ -1,4 +1,4 @@
-// --- FILE: js/fileSystem.js --- //
+// --- FILE: diranalyze/js/fileSystem.js --- //
 import { appState, elements } from './main.js';
 import * as notificationSystem from 'notificationSystem';
 import * as errorHandler from 'errorHandler';
@@ -98,7 +98,7 @@ export function filterScanData(fullData, selectedPathsSet) {
     if (!fullData || !fullData.directoryData) {
         return { directoryData: null, allFilesList: [], allFoldersList: [], maxDepth: 0, deepestPathExample: '', emptyDirCount: 0 };
     }
-    
+
     function filterNodeRecursive(node) {
         if (node.type === 'file') {
             return selectedPathsSet.has(node.path) ? { ...node } : null;
@@ -124,7 +124,7 @@ export function filterScanData(fullData, selectedPathsSet) {
                 if (!filteredFolder.fileTypes[fc.extension]) filteredFolder.fileTypes[fc.extension] = { count: 0, size: 0 };
                 filteredFolder.fileTypes[fc.extension].count++;
                 filteredFolder.fileTypes[fc.extension].size += fc.size;
-            } else { 
+            } else {
                 filteredFolder.dirCount++;
                 filteredFolder.dirCount += fc.dirCount;
                 filteredFolder.fileCount += fc.fileCount;
@@ -140,17 +140,17 @@ export function filterScanData(fullData, selectedPathsSet) {
     }
 
     const filteredDirectoryData = filterNodeRecursive(fullData.directoryData);
-    if (!filteredDirectoryData) { 
+    if (!filteredDirectoryData) {
         return { directoryData: null, allFilesList: [], allFoldersList: [], maxDepth: 0, deepestPathExample: '', emptyDirCount: 0 };
     }
-    
+
     const filteredAllFiles = [];
     const filteredAllFolders = [];
     function collectFiltered(node, filesArr, foldersArr) {
         if (!node) return;
         if (node.type === 'file') {
-            filesArr.push({ ...node }); 
-        } else { 
+            filesArr.push({ ...node });
+        } else {
             foldersArr.push({ name: node.name, path: node.path, entryHandle: node.entryHandle });
             if (node.children) node.children.forEach(child => collectFiltered(child, filesArr, foldersArr));
         }
@@ -163,7 +163,7 @@ export function filterScanData(fullData, selectedPathsSet) {
         allFoldersList: filteredAllFolders,
         maxDepth: fullData.maxDepth,
         deepestPathExample: fullData.deepestPathExample,
-        emptyDirCount: fullData.emptyDirCount 
+        emptyDirCount: fullData.emptyDirCount
     };
 }
 
@@ -195,7 +195,12 @@ export async function readFileContent(fileEntryOrHandle, filePathForEditedCheck 
         if (isText) {
             return await file.text();
         } else {
-            return await file.arrayBuffer();
+            // For binary files, we might return ArrayBuffer or Blob depending on use case
+            // For now, let's return a placeholder or a message, as direct display is often not useful
+            // Or, if you have a hex viewer or specific binary handler, integrate here.
+            // For the purpose of the previewer that uses CodeMirror, it shouldn't get here
+            // if isLikelyTextFile is false.
+            return file; // Return the File object itself for binary, previewer will handle it
         }
 
     } catch (err) {
@@ -218,6 +223,7 @@ function getCodeMirrorModeForPreview(filePath) {
         case '.java': return "text/x-java";
         case '.c': case '.h': case '.cpp': case '.hpp': return "text/x-c++src";
         case '.cs': return "text/x-csharp";
+        case '.liquid': return "htmlmixed"; // Added .liquid support
         default: return "text/plain"; // Fallback for unknown types
     }
 }
@@ -227,32 +233,37 @@ function getCodeMirrorModeForPreview(filePath) {
 export async function previewFile(fileEntryOrHandle, filePathForEditedCheck = null) {
     const pathKey = filePathForEditedCheck || fileEntryOrHandle?.path || fileEntryOrHandle?.fullPath || fileEntryOrHandle?.name;
     const displayName = fileEntryOrHandle?.name || (pathKey ? pathKey.substring(pathKey.lastIndexOf('/') + 1) : "File");
-    
+
+    elements.filePreviewTitle.textContent = `PREVIEW: ${displayName}`;
+    elements.filePreview.style.display = 'block'; // Use flex for modals if that's the standard
+    elements.filePreviewContent.innerHTML = ''; // Clear previous content
+
+    if (!utils.isLikelyTextFile(pathKey)) {
+        elements.filePreviewContent.innerHTML = `<div style="padding: 15px; text-align: center;">Cannot preview binary file or unsupported file type: ${displayName}</div>`;
+        return;
+    }
+
     try {
-        const content = await readFileContent(fileEntryOrHandle, pathKey);
-        elements.filePreviewTitle.textContent = `PREVIEW: ${displayName}`;
-        elements.filePreview.style.display = 'block';
+        const content = await readFileContent(fileEntryOrHandle, pathKey); // This now handles text files only based on the above check
 
         if (typeof CodeMirror !== 'undefined') {
             if (!appState.previewEditorInstance) {
-                appState.previewEditorInstance = CodeMirror(elements.filePreviewContent, { // Attach to the div
+                appState.previewEditorInstance = CodeMirror(elements.filePreviewContent, {
                     value: content,
                     mode: getCodeMirrorModeForPreview(pathKey),
                     lineNumbers: true,
-                    theme: "material-darker", // Match editor theme or choose another
-                    readOnly: true, // Important for preview
+                    theme: "material-darker",
+                    readOnly: true,
                     lineWrapping: true,
                 });
             } else {
                 appState.previewEditorInstance.setValue(content);
                 appState.previewEditorInstance.setOption("mode", getCodeMirrorModeForPreview(pathKey));
             }
-            // Ensure CodeMirror refreshes if the modal was hidden
             setTimeout(() => {
                 if (appState.previewEditorInstance) appState.previewEditorInstance.refresh();
             }, 50);
         } else {
-            // Fallback if CodeMirror is not loaded
             elements.filePreviewContent.innerHTML = `<pre>${content.replace(/</g, "<").replace(/>/g, ">")}</pre>`;
         }
 
@@ -272,12 +283,7 @@ export async function writeFileContent(directoryHandle, fullPath, content) {
     try {
         const rootName = directoryHandle.name;
         if (!fullPath.startsWith(rootName + '/')) {
-            // If the path is just the root name itself (a file dropped in the root)
             if (fullPath === rootName) {
-                 // This case is ambiguous. Let's assume the user means a file with the same name as the root folder.
-                 // A better approach is to ensure paths are always relative.
-                 // For now, let's treat it as an error or handle it as a file in the root.
-                 // Let's assume it's a file in the root
                  const fileHandle = await directoryHandle.getFileHandle(fullPath, { create: true });
                  const writable = await fileHandle.createWritable();
                  await writable.write(content);
@@ -326,3 +332,4 @@ export async function getFileHandleFromPath(directoryHandle, fullPath) {
     const fileHandle = await currentHandle.getFileHandle(fileName, { create: false });
     return fileHandle;
 }
+// --- ENDFILE: diranalyze/js/fileSystem.js --- //

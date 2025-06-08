@@ -1,3 +1,4 @@
+// --- FILE: diranalyze/js/main.js --- //
 import * as fileSystem from './fileSystem.js';
 import * as uiManager from './uiManager.js';
 import * as treeView from './treeView.js';
@@ -6,7 +7,7 @@ import * as reportGenerator from './reportGenerator.js';
 import * as notificationSystem from 'notificationSystem';
 import * as errorHandler from 'errorHandler';
 import * as fileEditor from 'fileEditor';
-import { initAiPatcher } from 'aiPatcher'; // Use named import
+import { initAiPatcher } from 'aiPatcher';
 import * as zipManager from 'zipManager';
 import * as utils from 'utils';
 import * as scaffoldImporter from 'scaffoldImporter';
@@ -26,11 +27,11 @@ export const appState = {
     isLoadingFileContent: false,
     editorActiveAsMainView: false,
     previousActiveTabId: null,
-    directoryHandle: null, // Will be null for scaffolded projects until saved
+    directoryHandle: null, // This is the crucial state variable
     saveState: null,
 };
 
-export let elements = {}; // populated by populateElements
+export let elements = {};
 
 function populateElements() {
     const elementIds = {
@@ -63,6 +64,7 @@ function populateElements() {
         closeAiDebriefingAssistantModalBtn: 'closeAiDebriefingAssistantModalBtn',
         debriefMetadataCheckbox: 'debriefMetadataCheckbox', assembleDebriefPackageBtn: 'assembleDebriefPackageBtn',
         useStandardDebriefProfileBtn: 'useStandardDebriefProfileBtn',
+        copyPatchPromptBtn: 'copyPatchPromptBtn',
     };
     for (const key in elementIds) elements[key] = document.getElementById(elementIds[key]);
     elements.fileTypeTableBody = document.querySelector('#fileTypeTable tbody');
@@ -75,7 +77,49 @@ function setupEventListeners() {
     elements.commitSelectionsBtn?.addEventListener('click', commitSelections);
     elements.downloadProjectBtn?.addEventListener('click', zipManager.downloadProjectAsZip);
     elements.clearProjectBtn?.addEventListener('click', clearProjectData);
-    // More listeners can be added here...
+
+    elements.selectAllBtn?.addEventListener('click', () => {
+        if (!appState.fullScanData) return;
+        treeView.setAllSelections(true);
+    });
+    elements.deselectAllBtn?.addEventListener('click', () => {
+        if (!appState.fullScanData) return;
+        treeView.setAllSelections(false);
+    });
+    elements.expandAllBtn?.addEventListener('click', () => {
+        if (!appState.fullScanData) return;
+        treeView.toggleAllFolders(false);
+    });
+    elements.collapseAllBtn?.addEventListener('click', () => {
+        if (!appState.fullScanData) return;
+        treeView.toggleAllFolders(true);
+    });
+
+    elements.copyReportButton?.addEventListener('click', () => {
+        if (elements.textOutputEl && elements.textOutputEl.textContent && appState.activeTabId === 'textReportTab') {
+            navigator.clipboard.writeText(elements.textOutputEl.textContent)
+                .then(() => notificationSystem.showNotification("Report copied to clipboard!", { duration: 2000 }))
+                .catch(err => {
+                    console.error("Failed to copy report:", err);
+                    notificationSystem.showNotification("Failed to copy report. See console.", { duration: 3000 });
+                });
+        } else {
+            notificationSystem.showNotification("No report content to copy or not on report tab.", { duration: 3000 });
+        }
+    });
+
+    elements.closePreview?.addEventListener('click', () => {
+        if (elements.filePreview) elements.filePreview.style.display = 'none';
+        if (appState.previewEditorInstance) {
+            // appState.previewEditorInstance.setValue(''); // Optionally clear
+        }
+    });
+    const cancelAiDebriefBtn = document.getElementById('cancelAiDebriefBtn');
+    if (cancelAiDebriefBtn && elements.closeAiDebriefingAssistantModalBtn) {
+        cancelAiDebriefBtn.addEventListener('click', () => {
+            elements.closeAiDebriefingAssistantModalBtn.click();
+        });
+    }
 }
 
 async function handleFileDrop(event) {
@@ -85,7 +129,8 @@ async function handleFileDrop(event) {
     if (items && items.length > 0 && items[0].getAsFileSystemHandle) {
         const handle = await items[0].getAsFileSystemHandle();
         if (handle.kind === 'directory') {
-            appState.directoryHandle = handle; // Store for real projects
+            // Do not set appState.directoryHandle here globally yet.
+            // Pass it directly to verifyAndProcessDirectory.
             await verifyAndProcessDirectory(handle);
         } else {
             errorHandler.showError({ name: "InvalidTargetError", message: "Please drop a folder." });
@@ -97,30 +142,69 @@ async function handleFolderSelect() {
     if (appState.processingInProgress) return;
     try {
         const handle = await window.showDirectoryPicker();
-        appState.directoryHandle = handle; // Store for real projects
+        // Do not set appState.directoryHandle here globally yet.
+        // Pass it directly to verifyAndProcessDirectory.
         await verifyAndProcessDirectory(handle);
     } catch (err) {
-        // User likely cancelled
+        if (err.name !== 'AbortError') {
+            errorHandler.showError({ name: err.name, message: `Could not select folder: ${err.message}`});
+        }
+        console.log("Folder selection aborted or failed:", err);
     }
 }
 
-async function verifyAndProcessDirectory(directoryHandle) {
-    if (await directoryHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
-        if (await directoryHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
-            errorHandler.showError({ name: "PermissionError", message: "Write permission denied." });
-            return;
-        }
+async function verifyAndProcessDirectory(passedDirectoryHandle) {
+    // `passedDirectoryHandle` is the fresh handle from picker/drop
+    if (!passedDirectoryHandle) {
+        errorHandler.showError({ name: "InternalError", message: "No directory handle provided for processing." });
+        return;
     }
-    resetUIForProcessing(`Processing '${directoryHandle.name}'...`);
+
     try {
-        appState.fullScanData = await fileSystem.processDirectoryEntryRecursive(directoryHandle, directoryHandle.name, 0);
-        appState.committedScanData = appState.fullScanData; // Commit all initially
+        let permissionGranted = false;
+        if (await passedDirectoryHandle.queryPermission({ mode: 'readwrite' }) === 'granted') {
+            permissionGranted = true;
+        } else {
+            if (await passedDirectoryHandle.requestPermission({ mode: 'readwrite' }) === 'granted') {
+                permissionGranted = true;
+            } else {
+                if (await passedDirectoryHandle.queryPermission({ mode: 'read' }) === 'granted' || await passedDirectoryHandle.requestPermission({ mode: 'read' }) === 'granted') {
+                     notificationSystem.showNotification("Write permission denied. Proceeding in read-only mode for this folder.", { duration: 4000 });
+                     permissionGranted = true; 
+                } else {
+                    errorHandler.showError({ name: "PermissionError", message: "Read permission also denied. Cannot process folder." });
+                    return;
+                }
+            }
+        }
+    } catch (err) {
+        errorHandler.showError({ name: "PermissionError", message: `Error requesting permissions: ${err.message}`});
+        return;
+    }
+
+    // Call reset which will clear the global appState.directoryHandle
+    resetUIForProcessing(`Processing '${passedDirectoryHandle.name}'...`);
+
+    // NOW, assign the fresh, permission-verified handle to the global appState
+    // This is the critical fix: ensure it's set *after* resetUIForProcessing clears it.
+    appState.directoryHandle = passedDirectoryHandle;
+    console.log('[verifyAndProcessDirectory] appState.directoryHandle SET TO:', appState.directoryHandle);
+
+
+    try {
+        // Process using the now globally set appState.directoryHandle (or the local passedDirectoryHandle, both are same now)
+        appState.fullScanData = await fileSystem.processDirectoryEntryRecursive(appState.directoryHandle, appState.directoryHandle.name, 0);
+        appState.committedScanData = appState.fullScanData;
         appState.selectionCommitted = true;
+        if (elements.treeContainer) elements.treeContainer.innerHTML = '';
         treeView.renderTree(appState.fullScanData.directoryData, elements.treeContainer);
         uiManager.refreshAllUI();
-        enableUIControls();
+        enableUIControls(); // This will now correctly enable buttons based on appState.directoryHandle
+        console.log('[verifyAndProcessDirectory] Processing complete. appState.directoryHandle IS:', appState.directoryHandle);
     } catch (err) {
         showFailedUI("Directory processing failed.");
+        errorHandler.showError(err);
+        appState.directoryHandle = null; // Nullify if processing failed
     } finally {
         appState.processingInProgress = false;
         if(elements.loader) elements.loader.classList.remove('visible');
@@ -128,6 +212,7 @@ async function verifyAndProcessDirectory(directoryHandle) {
 }
 
 export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
+    console.trace("resetUIForProcessing called. Directory handle will be cleared.");
     appState.processingInProgress = true;
     if (elements.loader) {
         elements.loader.textContent = loaderMsg;
@@ -137,27 +222,43 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     appState.fullScanData = null;
     appState.committedScanData = null;
     appState.selectionCommitted = false;
-    appState.directoryHandle = null; // Clear handle for scaffolded projects mainly
+    appState.directoryHandle = null; // Clears the global handle
     fileEditor.clearEditedFilesCache();
     if (elements.treeContainer) elements.treeContainer.innerHTML = '<div class="empty-notice">DROP FOLDER OR IMPORT SCAFFOLD</div>';
     disableUIControls();
-    uiManager.activateTab('textReportTab'); // Default to text report
+    uiManager.activateTab('textReportTab');
 }
 
 export function enableUIControls() {
     const hasData = !!appState.fullScanData;
-    elements.commitSelectionsBtn.disabled = !hasData;
-    elements.downloadProjectBtn.disabled = !hasData;
-    elements.clearProjectBtn.disabled = !hasData;
-    elements.aiDebriefingAssistantBtn.disabled = !hasData;
-    // Other buttons like selectAll, expandAll also depend on hasData implicitly through treeView
+    const hasDirectoryHandle = !!appState.directoryHandle; // Key for enabling save-related features
+
+    if (elements.commitSelectionsBtn) elements.commitSelectionsBtn.disabled = !hasData;
+    if (elements.downloadProjectBtn) elements.downloadProjectBtn.disabled = !hasData;
+    if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = !hasData;
+    if (elements.aiDebriefingAssistantBtn) elements.aiDebriefingAssistantBtn.disabled = !hasData;
+    if (elements.selectAllBtn) elements.selectAllBtn.disabled = !hasData;
+    if (elements.deselectAllBtn) elements.deselectAllBtn.disabled = !hasData;
+    if (elements.expandAllBtn) elements.expandAllBtn.disabled = !hasData;
+    if (elements.collapseAllBtn) elements.collapseAllBtn.disabled = !hasData;
+
+    if (elements.copyReportButton) elements.copyReportButton.disabled = !(hasData && appState.activeTabId === 'textReportTab');
+    // Enable patch prompt if any project (scaffold or disk) is loaded
+    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = !hasData;
+    // Apply AI Patch button itself in aiPatcher.js would depend on text input
 }
 
 function disableUIControls() {
-    elements.commitSelectionsBtn.disabled = true;
-    elements.downloadProjectBtn.disabled = true;
-    elements.clearProjectBtn.disabled = true;
-    elements.aiDebriefingAssistantBtn.disabled = true;
+    if (elements.commitSelectionsBtn) elements.commitSelectionsBtn.disabled = true;
+    if (elements.downloadProjectBtn) elements.downloadProjectBtn.disabled = true;
+    if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = true;
+    if (elements.aiDebriefingAssistantBtn) elements.aiDebriefingAssistantBtn.disabled = true;
+    if (elements.selectAllBtn) elements.selectAllBtn.disabled = true;
+    if (elements.deselectAllBtn) elements.deselectAllBtn.disabled = true;
+    if (elements.expandAllBtn) elements.expandAllBtn.disabled = true;
+    if (elements.collapseAllBtn) elements.collapseAllBtn.disabled = true;
+    if (elements.copyReportButton) elements.copyReportButton.disabled = true;
+    if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = true;
 }
 
 export function showFailedUI(message = "OPERATION FAILED") {
@@ -165,13 +266,32 @@ export function showFailedUI(message = "OPERATION FAILED") {
     uiManager.activateTab('textReportTab');
     if(elements.loader) elements.loader.classList.remove('visible');
     appState.processingInProgress = false;
+    enableUIControls();
+    if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
+    if (elements.folderInput) elements.folderInput.disabled = false;
 }
 
 function commitSelections() {
-    if (!appState.fullScanData) return;
+    if (!appState.fullScanData || !elements.treeContainer) return;
     const selectedPaths = new Set();
-    elements.treeContainer.querySelectorAll('li[data-selected="true"]').forEach(li => selectedPaths.add(li.dataset.path));
-    appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, selectedPaths);
+    elements.treeContainer.querySelectorAll('li[data-selected="true"]').forEach(li => {
+        if (li.dataset.path) selectedPaths.add(li.dataset.path);
+    });
+
+    if (selectedPaths.size === 0 && appState.fullScanData.allFilesList.length > 0) {
+        // If nothing is visually selected via checkboxes, but a project is loaded,
+        // interpret "Commit" with no visual selection as "commit nothing" (empty selection).
+        appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, new Set()); // Empty set
+        notificationSystem.showNotification("Committed an empty selection.", { duration: 2000 });
+    } else if (selectedPaths.size === 0 && appState.fullScanData.allFilesList.length === 0) {
+        // Project loaded is empty or structure is empty
+        appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, new Set());
+        notificationSystem.showNotification("No items to commit in the current project.", { duration: 2000 });
+    }
+    else {
+        appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, selectedPaths);
+        notificationSystem.showNotification("Selections committed.", { duration: 1500 });
+    }
     appState.selectionCommitted = true;
     uiManager.refreshAllUI();
 }
@@ -179,6 +299,10 @@ function commitSelections() {
 function clearProjectData() {
     resetUIForProcessing("DROP FOLDER OR IMPORT SCAFFOLD");
     if(elements.loader) elements.loader.classList.remove('visible');
+    enableUIControls();
+    if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
+    if (elements.folderInput) elements.folderInput.disabled = false;
+    if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
 }
 
 function initApp() {
@@ -186,10 +310,10 @@ function initApp() {
     notificationSystem.initNotificationSystem();
     errorHandler.initErrorHandlers();
     fileEditor.initFileEditor();
-    initAiPatcher(appState, elements); // Pass dependencies
-    scaffoldImporter.initScaffoldImporter(appState, elements, resetUIForProcessing, verifyAndProcessDirectory, enableUIControls, showFailedUI);
-    aiDebriefingAssistant.initAiDebriefingAssistant(appState, elements); // Pass dependencies
-    uiManager.initTabs(appState, elements); // Pass dependencies
+    initAiPatcher(appState, elements);
+    scaffoldImporter.initScaffoldImporter();
+    aiDebriefingAssistant.initAiDebriefingAssistant(appState, elements);
+    uiManager.initTabs(appState, elements);
     sidebarResizer.initResizer(elements.leftSidebar, elements.sidebarResizer, elements.mainView);
     setupEventListeners();
 
@@ -197,9 +321,11 @@ function initApp() {
     document.body.classList.add('loaded');
     appState.initialLoadComplete = true;
     console.log("DirAnalyse Matrix Initialized (v. Full Replacement).");
-    disableUIControls(); // Start with most controls disabled
-    elements.importAiScaffoldBtn.disabled = false; // Ensure scaffold import is enabled
-    elements.folderInput.disabled = false; // Ensure folder select is enabled
+    disableUIControls();
+    if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
+    if (elements.folderInput) elements.folderInput.disabled = false;
+    if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
+// --- ENDFILE: diranalyze/js/main.js --- //

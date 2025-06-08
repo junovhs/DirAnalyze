@@ -1,3 +1,4 @@
+// --- FILE: diranalyze/js/utils.js --- //
 // Format bytes to human-readable format
 export function formatBytes(bytes, decimals = 2) {
     if (bytes === undefined || bytes === null || isNaN(bytes) || bytes < 0) return '0 Bytes'; // Robust check
@@ -6,7 +7,7 @@ export function formatBytes(bytes, decimals = 2) {
     const dm = decimals < 0 ? 0 : decimals;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB']; // Added PB
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
+
     // Ensure 'i' is within the bounds of the 'sizes' array
     const BoundedI = Math.min(i, sizes.length -1);
 
@@ -20,16 +21,17 @@ export function isLikelyTextFile(filepath) {
     const textExtensions = [
         // Code & Markup
         '.txt', '.md', '.csv', '.json', '.xml', '.yaml', '.yml', '.html', '.htm', '.xhtml', '.css', '.js', '.mjs', '.jsx', '.ts', '.tsx',
-        '.php', '.phtml', '.rb', '.py', '.pyw', '.java', '.jsp', '.c', '.cpp', '.h', '.hpp', '.cs', '.vb', '.go', '.rs', '.swift', 
+        '.php', '.phtml', '.rb', '.py', '.pyw', '.java', '.jsp', '.c', '.cpp', '.h', '.hpp', '.cs', '.vb', '.go', '.rs', '.swift',
         '.kt', '.kts', '.scala', '.sh', '.bash', '.zsh', '.ps1', '.bat', '.cmd', '.sql', '.r', '.m', '.mm', '.f', '.f90', '.for',
-        '.hs', '.lhs', '.pl', '.pm', '.t', '.lua', '.tcl', '.groovy', '.gvy', '.gradle', '.dart', '.elm', '.erl', '.hrl', 
-        '.ex', '.exs', '.clj', '.cljs', '.cljc', '.edn', '.coffee', '.litcoffee', '.ls', '.jade', '.pug', '.haml', '.slim', 
+        '.hs', '.lhs', '.pl', '.pm', '.t', '.lua', '.tcl', '.groovy', '.gvy', '.gradle', '.dart', '.elm', '.erl', '.hrl',
+        '.ex', '.exs', '.clj', '.cljs', '.cljc', '.edn', '.coffee', '.litcoffee', '.ls', '.jade', '.pug', '.haml', '.slim',
         '.ejs', '.asp', '.aspx', '.ascx', '.master', '.erb', '.hbs', '.mustache', '.handlebars', '.vue', '.svelte', '.glsl', '.frag', '.vert',
-        
+        '.liquid', // Added .liquid
+
         // Config
         '.ini', '.conf', '.cfg', '.config', '.properties', '.prop', '.toml', '.env', '.editorconfig', '.gitattributes',
         '.gitconfig', '.gitignore', '.npmrc', '.yarnrc', '.babelrc', '.eslintrc', '.prettierrc', '.stylelintrc', '.tf', '.tfvars',
-        
+
         // Docs & Data
         '.log', '.rst', '.tex', '.bib', '.adoc', '.asciidoc', '.textile', '.wiki', '.mediawiki', '.org', '.creole', '.asc',
         '.rtf', '.srt', '.vtt', '.sub', '.po', '.pot', '.svg', '.geojson', '.kml', '.gpx', '.url', '.webloc', '.desktop',
@@ -45,7 +47,7 @@ export function isLikelyTextFile(filepath) {
 
     const lowerPath = filepath.toLowerCase();
     const filename = lowerPath.substring(lowerPath.lastIndexOf('/') + 1);
-    
+
     if (textFilenames.includes(filename)) {
         return true;
     }
@@ -58,7 +60,7 @@ export function isLikelyTextFile(filepath) {
             return true;
         }
     }
-    
+
     // Default to false if no known text pattern matches
     return false;
 }
@@ -70,3 +72,4 @@ export function getFileExtension(filename) {
     }
     return filename.substring(lastDot).toLowerCase();
 }
+// --- ENDFILE: diranalyze/js/utils.js --- //

@@ -4,7 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DirAnalyse Matrix v3.2.2 - AI Refactor & Patch</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <!-- REFACSORED CSS LINKS -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/modals.css">
+    <link rel="stylesheet" href="css/editor.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <!-- END REFACTORED CSS LINKS -->
     <link rel="icon" href="logo.png" type="image/png">
 
     <!-- CodeMirror CSS -->
@@ -42,7 +49,8 @@
         "aiPatcher": "./js/aiPatcher.js",
         "zipManager": "./js/zipManager.js",
         "scaffoldImporter": "./js/scaffoldImporter.js",
-        "aiDebriefingAssistant": "./js/aiDebriefingAssistant.js"
+        "aiDebriefingAssistant": "./js/aiDebriefingAssistant.js",
+        "./lib-wrappers/dmp-wrapper.js": "./js/lib-wrappers/dmp-wrapper.js"
       }
     }
     </script>
@@ -122,15 +130,15 @@
                 <div id="aiPatcherTab" class="tab-content-item">
                      <div id="aiPatchPanel" class="content-panel">
                         <div class="panel-header"><h2>AI CODE PATCHER (Contextual Anchor Patches)</h2></div>
-                        <div class="patch-input-area">
+                            <div class="patch-input-area">
                             <button id="copyPatchPromptBtn" class="action-button" title="Copy prompt for AI to generate code patches" disabled>COPY PATCH PROMPT</button>
                             <p style="margin-top: 10px; margin-bottom: 5px; font-size: 0.9em; line-height: 1.5;">
                                 <strong>Workflow to apply AI-generated patches:</strong><br>
-                                1. Click "COPY PATCH PROMPT" above.<br>
-                                2. In your AI chat (e.g., Gemini, Claude, ChatGPT), paste the copied prompt. Then, provide the target file's full path and its current content. You can copy file content from DirAnalyse's editor (Edit ✏️ icon in Combine Mode or Tree View) or use the "Combine Mode" tab to get pre-formatted content of multiple files.<br>
-                                3. Clearly instruct your AI on the changes you want and ask it to generate CAPCA JSON for those changes.<br>
-                                4. Paste the AI's complete JSON array response into the textarea below.<br>
-                                5. Click "Review & Apply Patches" to see a diff and confirm each change.
+                                1. Ensure your AI Chat (e.g., Gemini, Claude, ChatGPT) has been debriefed with your project context (use the "🚀 AI DEBRIEFING ASSISTANT" on the left for this).<br>
+                                2. Click "COPY PATCH PROMPT" above. This copies instructions for the AI on the required JSON patch format.<br>
+                                3. In your AI chat, paste the copied prompt. Then, clearly describe the changes you want the AI to make to your project (e.g., "Refactor the login function in auth.js to use async/await and add error handling for network issues." or "Change the primary color in all CSS files to #3498db.").<br>
+                                4. The AI will provide a CAPCA JSON array. Paste this entire JSON response into the textarea below.<br>
+                                5. Click "Review & Apply Patches" to see a diff for each proposed change and confirm its application.
                             </p>
                             <textarea id="aiPatchInput" rows="6" placeholder='e.g., [{"file": "path/to/your/file.ext", "operation": "replace_segment_after_anchor", ...}]'></textarea>
                             <button id="applyAiPatchBtn" class="action-button">Review & Apply Patches</button>
@@ -146,6 +154,7 @@
                 <div class="editor-header">
                     <h3 id="editorFileTitle">FILE EDITOR</h3>
                     <div class="editor-actions">
+                        <button id="saveFileBtn" class="editor-button" disabled>SAVE FILE (CTRL/CMD+S)</button>
                         <button id="closeEditorBtn" class="editor-button">CLOSE</button>
                     </div>
                 </div>
