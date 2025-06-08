@@ -8,7 +8,7 @@
 - [x] Removal of obsolete UI components (Combine Mode).
 
 ## 0.2 - Core Backend Bootstrap (Target 2025-08-01)
-- [ ] CLI `serve` command; proxy to OpenAI, Anthropic, Ollama.
+- [x] CLI `serve` command; proxy to OpenAI, Anthropic, Ollama.
 - [ ] Tree-sitter parsers: Swift & JS.
 - [ ] Sketch index builder + budget walker.
 - [ ] TruffleHog gate — hard fail.
