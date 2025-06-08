@@ -12,16 +12,23 @@
 - [ ] Tree-sitter parsers: Swift & JS.
 - [ ] Sketch index builder + budget walker.
 - [ ] TruffleHog gate — hard fail.
-- [ ] Deterministic hash log v1 (SQLite).
+- [x] Deterministic hash log v1 (SQLite schema for versioning: ProjectVersions, VersionFiles, OperationLog).
+- [x] Backend API for initial project snapshot (Version 0).
+- [ ] Frontend: Calculate file hashes & send initial snapshot data.
+- [ ] Backend API & Logic for subsequent version snapshots (post-patch).
 
 ## 0.3 - CLI Alpha (Planned)
 - [ ] 10-prompt retrieval benchmark vs. naive FTS.
 - [ ] Config file `~/.config/diranalyze.toml` (stores key, model, budget).
 - [ ] GitHub sync script v2 (labels, milestones auto-sync).
+- [ ] UI: Display version history timeline.
+- [ ] Core: Restore project to a selected version.
+- [ ] Backend: Store and use file diffs for versioning.
+
 
 ## 0.4 - GUI Alpha (Planned)
 - [ ] Embedded web-view UI (no Electron).
-- [ ] "Log" tab with live hash stream.
+- [ ] "Log" tab with live hash stream (possibly version events).
 - [ ] Key storage UI (encrypted on disk).
 
 ## 0.5 - Plugin Runner API (Planned)
