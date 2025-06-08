@@ -6,7 +6,7 @@
 - **Paste-and-go (planned)** – drop a repo, paste your LLM key, start coding
 - **Hierarchical Semantic Sketch (planned)** – budget-bounded tree of package → file → symbol summaries; ships only what the model needs
 - **Hard secret gate (planned)** – TruffleHog scan; refuses to leak keys or tokens
-- **Deterministic hash log (planned)** – every file, prompt and diff recorded for audit/replay
+- **Deterministic hash log (in progress)** – every file, prompt and diff recorded for audit/replay; initial version snapshotting implemented.
 - **MIT licence** – fork it, remix it, just keep the header
 
 > **Security advisory** DirAnalyze is **not sandboxed**. You are editing your local file system directly. Run trusted code only.
@@ -22,19 +22,20 @@
 | "Paste whole repo into ChatGPT" bloat   | Sketch index will narrow prompts to ≈ 10k tokens (planned)|
 | Copy-prompt-paste loop                  | JSON patch actions applied directly to local files       |
 | Cloud snooping fears                    | Runs offline; only your chosen LLM endpoint sees code    |
-| No trace of what AI changed             | Deterministic hash log for full replay (planned)         |
+| No trace of what AI changed             | Deterministic hash log for full replay (in progress)     |
 
 ---
 
-## 2 Current state (2025-06-06)
+## 2 Current state (2025-06-08)
 
 | Component                      | State                | Notes                                                      |
 |--------------------------------|----------------------|------------------------------------------------------------|
-| Backend (Rust)                 | **in progress**      | Basic web server and LLM proxy are functional.             |
+| Backend (Rust)                 | **in progress**      | Basic web server, LLM proxy, and initial version snapshotting API functional. |
 | Browser UI (HTML/JS/CSS)       | Functional Prototype | Uses the File System Access API for live local editing.    |
 | Hierarchical Sketch            | spec drafted         | Parsing and indexing logic not yet implemented.            |
 | AI Patcher Workflow            | functional           | Can apply CAPCA patches directly to the local disk.        |
 | AI Debriefing Assistant        | functional           | Core workflow for packaging context is implemented.        |
+| Deterministic Hash Log / Versioning | **in progress** | SQLite schema for versioning established. Initial project snapshot (Version 0) API implemented. |
 
 ---
 
@@ -70,15 +71,15 @@ Full details in [`docs/roadmap.md`](./docs/roadmap.md).
 ---
 
 ## 6 Planned architecture
+
 ```
 Browser UI ── fetch/ws ──┐
 ▼
-DirAnalyze binary (HTTP+WS, index, log, proxy)
+DirAnalyze binary (HTTP+WS, index, log, proxy, version_db)
 ▲
 external LLM HTTPS│ optional runners (zig cc, swiftc…)
 ```
-*Diagram represents target design; not yet implemented.*
-
+*Diagram represents target design; version_db part is in progress.*
 ---
 
 ## 7 Limitations
