@@ -1,4 +1,4 @@
-// --- FILE: diranalyze/js/utils.js --- //
+// --- FILE: js/utils.js --- //
 // Format bytes to human-readable format
 export function formatBytes(bytes, decimals = 2) {
     if (bytes === undefined || bytes === null || isNaN(bytes) || bytes < 0) return '0 Bytes'; // Robust check
@@ -72,4 +72,20 @@ export function getFileExtension(filename) {
     }
     return filename.substring(lastDot).toLowerCase();
 }
-// --- ENDFILE: diranalyze/js/utils.js --- //
+// --- ENDFILE: js/utils.js --- //
+
+// Calculate the SHA-256 hash of an ArrayBuffer
+export async function calculateSHA256(arrayBuffer) {
+    if (!crypto.subtle || !crypto.subtle.digest) {
+        console.warn("SubtleCrypto not available. Cannot calculate file hashes.");
+        return 'crypto_unsupported';
+    }
+    try {
+        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (error) {
+        console.error("Error calculating SHA-256 hash:", error);
+        return 'hashing_error';
+    }
+}

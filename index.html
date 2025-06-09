@@ -4,24 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DirAnalyse Matrix v3.2.2 - AI Refactor & Patch</title>
-    <!-- REFACSORED CSS LINKS -->
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/editor.css">
     <link rel="stylesheet" href="css/responsive.css">
-    <!-- END REFACTORED CSS LINKS -->
     <link rel="icon" href="logo.png" type="image/png">
 
-    <!-- CodeMirror CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/material-darker.min.css">
 
     <script src="js/lib/diff_match_patch.js"></script>
     <script src="js/lib/jszip.min.js"></script>
 
-    <!-- CodeMirror JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/javascript/javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/css/css.min.js"></script>
@@ -54,6 +50,15 @@
       }
     }
     </script>
+    <style>
+        #versionHistoryList { list-style-type: none; padding: 0; }
+        #versionHistoryList li { background-color: var(--bg-color); border: 1px solid var(--border-color); padding: 8px 12px; margin-bottom: 5px; border-radius: var(--border-radius-small); font-size: 0.9em; }
+        #versionHistoryList li:hover { background-color: var(--highlight-bg); }
+        #versionHistoryList .version-id { font-weight: bold; color: var(--accent-color); }
+        #versionHistoryList .version-parent { font-size: 0.85em; color: var(--dim-color); }
+        #versionHistoryList .version-time { font-size: 0.85em; display: block; margin-top: 3px; }
+        #versionHistoryList .version-desc { display: block; margin-top: 2px; }
+    </style>
 </head>
 <body>
     <div id="pageLoader">
@@ -117,6 +122,7 @@
             <nav id="mainViewTabs">
                 <button class="tab-button active" data-tab="textReportTab" title="View Comprehensive Text Report">Text Report</button>
                 <button class="tab-button" data-tab="aiPatcherTab" title="Apply AI-Generated Code Patches">AI Patcher</button>
+                <button class="tab-button" data-tab="versionHistoryTab" title="View Project Version History">Version History</button>
             </nav>
             <div id="tabContentArea">
                 <div id="textReportTab" class="tab-content-item active">
@@ -149,6 +155,23 @@
                         </div>
                     </div>
                 </div>
+                
+                <div id="versionHistoryTab" class="tab-content-item">
+                    <div id="versionHistoryPanel" class="content-panel">
+                        <div class="panel-header">
+                            <h2>PROJECT VERSION HISTORY</h2>
+                            <button id="refreshVersionsBtn" class="action-button utility-button" style="width:auto; padding: 5px 10px;">Refresh List</button>
+                        </div>
+                        <div class="modal-scrollable-content" style="padding: 15px;">
+                             <ul id="versionHistoryList">
+                             </ul>
+                        </div>
+                        <div class="button-container" style="display:none;" id="restoreVersionActions">
+                            <button id="restoreSelectedVersionBtn" class="action-button" disabled>Restore Selected Version</button>
+                        </div>
+                    </div>
+                </div>
+
             </div>
             <div id="fileEditor" style="display:none;">
                 <div class="editor-header">
@@ -196,7 +219,6 @@
         </div>
     </div>
     
-    <!-- AI Debriefing Assistant Modal -->
     <div id="aiDebriefingAssistantModal" class="diff-modal" style="display:none;">
         <div class="diff-modal-content" style="max-width: 750px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom:15px; border-bottom: 1px solid var(--border-color); padding-bottom:10px;">
@@ -234,7 +256,7 @@
             </div>
             <div class="diff-modal-actions" style="margin-top:15px; padding-top:15px; border-top: 1px solid var(--border-color);">
                 <button id="assembleDebriefPackageBtn" class="action-button" disabled>Assemble & Copy Debriefing Package</button>
-                <button id="cancelAiDebriefBtn" class="action-button secondary">Cancel</button> <!-- Reusing close logic -->
+                <button id="cancelAiDebriefBtn" class="action-button secondary">Cancel</button>
             </div>
         </div>
     </div>

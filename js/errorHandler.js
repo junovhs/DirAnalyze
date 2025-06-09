@@ -1,4 +1,6 @@
+// --- FILE: diranalyze/js/errorHandler.js --- //
 const errorTypes = {
+    // ... (errorTypes object remains unchanged)
     NoModificationAllowedError: {
         title: "Permission Denied: Cannot Modify Files",
         message: "The browser was denied permission to modify the file system.",
@@ -50,7 +52,6 @@ const errorTypes = {
             "Verify line numbers and content are correctly formatted."
         ]
     },
-    // Default fallback for unknown errors
     default: {
         title: "Unexpected Error",
         message: "An unexpected error occurred.",
@@ -61,47 +62,61 @@ const errorTypes = {
     }
 };
 
-// Show error details in the error panel
 export function showError(error) {
-    const errorPanel = document.getElementById('errorReport');
+    // Ensure elements are populated via main.js's elements object
+    // This function is called after init, so main.elements should be available
+    const mainElements = window.diranalyze.elements; // Assuming elements is exposed globally or passed
+    
+    const errorPanel = mainElements.errorReport;
+    if (!errorPanel) {
+        console.error("FATAL: errorReport panel not found in DOM. Cannot display error:", error);
+        return;
+    }
+
     const errorTitleEl = errorPanel.querySelector('.error-title');
     const errorMessageEl = errorPanel.querySelector('.error-message');
     const errorDetailsEl = errorPanel.querySelector('.error-details');
     const errorSuggestionsEl = errorPanel.querySelector('.error-suggestions');
     
-    // Determine error type and get appropriate messages
     const errorInfo = errorTypes[error.name] || errorTypes.default;
     
-    // Set error information
-    errorTitleEl.textContent = errorInfo.title;
-    errorMessageEl.textContent = error.message || errorInfo.message; // Prefer specific error message
-    errorDetailsEl.textContent = `Error Type: ${error.name}\nDetails: ${error.message}\nPath: ${error.path || 'N/A'}\nStack: ${error.stack || 'Not available'}`;
+    if(errorTitleEl) errorTitleEl.textContent = errorInfo.title;
+    if(errorMessageEl) errorMessageEl.textContent = error.message || errorInfo.message;
+    if(errorDetailsEl) errorDetailsEl.textContent = `Error Type: ${error.name || 'Unknown'}\nDetails: ${error.message || 'N/A'}\nPath: ${error.path || 'N/A'}\nStack: ${error.stack || 'Not available'}`;
     
-    // Clear previous suggestions
-    errorSuggestionsEl.innerHTML = '<strong>Suggestions:</strong>';
-    const list = document.createElement('ul');
-    errorInfo.suggestions.forEach(suggestion => {
-        const item = document.createElement('li');
-        item.textContent = suggestion;
-        list.appendChild(item);
-    });
-    errorSuggestionsEl.appendChild(list);
+    if(errorSuggestionsEl) {
+        errorSuggestionsEl.innerHTML = '<strong>Suggestions:</strong>';
+        const list = document.createElement('ul');
+        errorInfo.suggestions.forEach(suggestion => {
+            const item = document.createElement('li');
+            item.textContent = suggestion;
+            list.appendChild(item);
+        });
+        errorSuggestionsEl.appendChild(list);
+    }
     
-    // Show the error panel
     errorPanel.style.display = 'block';
-    
-    // Also log to console for debugging
     console.error('Detailed error reported to UI:', error);
 }
 
-// Initialize error handler events
-export function initErrorHandlers() {
-    // Close error panel button
-    document.getElementById('closeErrorBtn').addEventListener('click', () => {
-        document.getElementById('errorReport').style.display = 'none';
-    });
+// *** MODIFICATION: Accept 'elements' as a parameter ***
+export function initErrorHandlers(elements) {
+    // *** MODIFICATION: Use the passed 'elements' object ***
+    const closeButton = elements.errorReport?.querySelector('#closeErrorBtn'); // Assuming closeErrorBtn is inside errorReport
+    const errorPanel = elements.errorReport;
+
+    if (closeButton && errorPanel) {
+        closeButton.addEventListener('click', () => {
+            errorPanel.style.display = 'none';
+        });
+    } else {
+        if (!errorPanel) {
+            console.warn("Element 'errorReport' not found during initErrorHandlers. Error reporting may be impaired.");
+        } else if (!closeButton) { // Only warn about button if panel exists
+            console.warn("Element 'closeErrorBtn' (child of errorReport) not found. Error panel close button may not work.");
+        }
+    }
     
-    // Global error handler for uncaught exceptions
     window.addEventListener('error', (event) => {
         showError(event.error || {
             name: 'GlobalError',
@@ -110,7 +125,6 @@ export function initErrorHandlers() {
         });
     });
     
-    // Unhandled promise rejection handler
     window.addEventListener('unhandledrejection', (event) => {
         const reason = event.reason || {};
         showError({
@@ -120,3 +134,4 @@ export function initErrorHandlers() {
         });
     });
 }
+// --- ENDFILE: diranalyze/js/errorHandler.js --- //

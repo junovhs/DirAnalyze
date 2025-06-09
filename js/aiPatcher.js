@@ -5,15 +5,15 @@ import * as notificationSystem from 'notificationSystem';
 import * as errorHandler from 'errorHandler';
 import * as utils from 'utils';
 import * as treeView from 'treeView';
-import { DMP } from './lib-wrappers/dmp-wrapper.js'; // CORRECTLY IMPORT DMP
+import { DMP } from './lib-wrappers/dmp-wrapper.js';
+import { appState } from './main.js';
 
-// Module-level variables to hold dependencies injected by main.js
-let _appState;
 let _elements;
 
 let patchQueue = [];
 let currentPatchBeingReviewed = null;
 
+// *** THIS IS THE CORRECTED, FULL TEMPLATE ***
 const CAPCA_PROMPT_TEMPLATE = `
 You are an AI code assistant. Your goal is to help me modify my project files by generating a JSON array of "Contextual Anchor Patching and Creation Array" (CAPCA) operations.
 
@@ -38,6 +38,85 @@ My Change Request:
 
 Your CAPCA JSON response (provide ONLY the JSON array):
 `;
+
+
+async function triggerSubsequentSnapshot(description) {
+    if (!appState.currentVersionId) {
+        notificationSystem.showNotification("Cannot create new version: No parent version ID available.", { duration: 3500 });
+        console.error("Attempted to create subsequent snapshot, but appState.currentVersionId is null.");
+        return;
+    }
+
+    if (!appState.fullScanData) {
+        notificationSystem.showNotification("Cannot create new version: No project data loaded.", { duration: 3500 });
+        return;
+    }
+
+    if (_elements.loader) {
+        _elements.loader.textContent = `Creating new version: ${description}...`;
+        _elements.loader.classList.add('visible');
+    }
+
+    try {
+        const encoder = new TextEncoder();
+        const filePromises = appState.fullScanData.allFilesList.map(async (fileInfo) => {
+            try {
+                const content = await fileSystem.readFileContent(fileInfo.entryHandle, fileInfo.path, false);
+                
+                let buffer;
+                if (typeof content === 'string') {
+                    buffer = encoder.encode(content);
+                } else if (content instanceof Blob) {
+                    buffer = await content.arrayBuffer();
+                } else if (content instanceof ArrayBuffer) {
+                    buffer = content;
+                } else {
+                     console.warn(`Could not determine content type for hashing file ${fileInfo.path}, skipping hash.`);
+                     return { path: fileInfo.path, hash: 'unknown_content_type', size: fileInfo.size };
+                }
+
+                const hash = await utils.calculateSHA256(buffer);
+                return { path: fileInfo.path, hash: hash, size: buffer.byteLength };
+
+            } catch (error) {
+                console.error(`Could not process file for new snapshot: ${fileInfo.path}`, error);
+                return null;
+            }
+        });
+
+        const updatedFiles = (await Promise.all(filePromises)).filter(f => f !== null);
+
+        const snapshotPayload = {
+            parent_version_id: appState.currentVersionId,
+            description: description,
+            files: updatedFiles,
+        };
+
+        const response = await fetch('/api/snapshot/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(snapshotPayload),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Backend snapshot creation failed with status ${response.status}: ${errorText}`);
+        }
+
+        const result = await response.json();
+        appState.currentVersionId = result.version_id;
+        notificationSystem.showNotification(`New version saved! Version ID: ${result.version_id}`, { duration: 4000 });
+        console.log("Subsequent snapshot created:", result);
+
+    } catch (error) {
+        errorHandler.showError({ name: "SnapshotError", message: `Failed to create subsequent project snapshot: ${error.message}`, stack: error.stack });
+    } finally {
+        if (_elements.loader) {
+            _elements.loader.classList.remove('visible');
+            _elements.loader.textContent = 'ANALYSING...';
+        }
+    }
+}
 
 
 function parsePatchInstructions(patchJsonString) {
@@ -74,7 +153,7 @@ function parsePatchInstructions(patchJsonString) {
                     }
                     break;
                 default:
-                    break;
+                    break; // Allow other operations, they just won't be processed by calculateProposedChange
             }
         });
         return patches;
@@ -132,7 +211,7 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
     const basePathForState = filePath;
 
     if (patchOp.operation === 'create_file_with_content') {
-        const existingFile = _appState.fullScanData?.allFilesList.find(f => f.path === basePathForState);
+        const existingFile = appState.fullScanData?.allFilesList.find(f => f.path === basePathForState);
         if (existingFile || currentBatchFileStates.has(basePathForState)) {
             return { success: false, log: `  - Op: create_file. Error: File '${basePathForState}' already exists (or was created in this batch).`, originalContent: "", patchedContent: "" };
         }
@@ -146,12 +225,12 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
 
     if (currentBatchFileStates.has(basePathForState)) {
         contentToProcess = currentBatchFileStates.get(basePathForState);
-        rawOriginalContent = contentToProcess;
+        rawOriginalContent = contentToProcess; // For diff, use this potentially modified version
     } else if (fileEditor.getEditedContent(basePathForState) !== undefined) {
         rawOriginalContent = fileEditor.getEditedContent(basePathForState);
         contentToProcess = rawOriginalContent.replace(/\r\n/g, "\n");
     } else {
-        const fileData = _appState.fullScanData?.allFilesList.find(f => f.path === basePathForState);
+        const fileData = appState.fullScanData?.allFilesList.find(f => f.path === basePathForState);
         if (!fileData) {
             return { success: false, log: `  - Op: ${patchOp.operation}. Error: File '${basePathForState}' not found in project scan.`, originalContent: "", patchedContent: "" };
         }
@@ -166,8 +245,8 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
         }
     }
 
-    const originalContentForDiff = contentToProcess;
-    let proposedContentNormalized = contentToProcess;
+    const originalContentForDiff = contentToProcess; // Base for diff is the current state
+    let proposedContentNormalized = contentToProcess; // Start with current content
 
     const normalizedAnchorText = patchOp.anchorText.replace(/\r\n/g, "\n");
     const normalizedSegmentToAffect = patchOp.segmentToAffect ? patchOp.segmentToAffect.replace(/\r\n/g, "\n") : "";
@@ -189,7 +268,7 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
                                         normalizedNewText +
                                         contentToProcess.substring(afterAnchorIndex);
             logEntry = `  - Op: insert_text_after_anchor. Success: Inserted text after anchor "${shorten(normalizedAnchorText)}".`;
-        } else {
+        } else { // replace or delete
             const segmentStartIndex = contentToProcess.indexOf(normalizedSegmentToAffect, afterAnchorIndex);
             const leniencyChars = patchOp.leniencyChars === undefined ? 5 : patchOp.leniencyChars;
 
@@ -200,7 +279,7 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
             }
 
             if (patchOp.operation === 'replace_segment_after_anchor') {
-                 if (normalizedSegmentToAffect.length === 0 && normalizedNewText.length > 0) {
+                 if (normalizedSegmentToAffect.length === 0 && normalizedNewText.length > 0) { // Treat as insert
                     proposedContentNormalized = contentToProcess.substring(0, afterAnchorIndex) +
                                                 normalizedNewText +
                                                 contentToProcess.substring(afterAnchorIndex);
@@ -210,11 +289,11 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
                                                 normalizedNewText +
                                                 contentToProcess.substring(segmentStartIndex + normalizedSegmentToAffect.length);
                     logEntry = `  - Op: replace_segment_after_anchor. Success: Replaced segment "${shorten(normalizedSegmentToAffect)}".`;
-                 } else if (normalizedSegmentToAffect.length > 0 && segmentStartIndex === -1) {
+                 } else if (normalizedSegmentToAffect.length > 0 && segmentStartIndex === -1) { // Segment not found after all
                     const foundInstead = contentToProcess.substring(afterAnchorIndex, afterAnchorIndex + Math.max(normalizedSegmentToAffect.length, 20) + 20);
                     logEntry = `  - Op: ${patchOp.operation}. Error: Non-empty segment "${shorten(normalizedSegmentToAffect)}" not found close after anchor "${shorten(normalizedAnchorText)}". Content after anchor: "${shorten(foundInstead, 40)}..."`;
                     return { success: false, log: logEntry, originalContent: originalContentForDiff, patchedContent: proposedContentNormalized };
-                 } else {
+                 } else { // segmentToAffect and newText both empty
                     logEntry = `  - Op: replace_segment_after_anchor. Info: 'segmentToAffect' and 'newText' were empty. No change.`;
                  }
             } else if (patchOp.operation === 'delete_segment_after_anchor') {
@@ -224,7 +303,7 @@ async function calculateProposedChange(filePath, patchOp, currentBatchFileStates
                     proposedContentNormalized = contentToProcess.substring(0, segmentStartIndex) +
                                                 contentToProcess.substring(segmentStartIndex + normalizedSegmentToAffect.length);
                     logEntry = `  - Op: delete_segment_after_anchor. Success: Deleted segment "${shorten(normalizedSegmentToAffect)}".`;
-                } else if (normalizedSegmentToAffect.length > 0 && segmentStartIndex === -1) {
+                } else if (normalizedSegmentToAffect.length > 0 && segmentStartIndex === -1) { // Segment not found
                     const foundInstead = contentToProcess.substring(afterAnchorIndex, afterAnchorIndex + Math.max(normalizedSegmentToAffect.length, 20) + 20);
                     logEntry = `  - Op: ${patchOp.operation}. Error: Non-empty segment "${shorten(normalizedSegmentToAffect)}" not found close after anchor "${shorten(normalizedAnchorText)}". Content after anchor: "${shorten(foundInstead,40)}..."`;
                     return { success: false, log: logEntry, originalContent: originalContentForDiff, patchedContent: proposedContentNormalized };
@@ -247,14 +326,16 @@ function showNextPatchInModal() {
         _elements.aiPatchOutputLog.textContent += "\n\nAll patches reviewed.";
         notificationSystem.showNotification("All patches reviewed.", { duration: 3000 });
         currentPatchBeingReviewed = null;
+        // Trigger snapshot AFTER the last patch is reviewed (handled in closeDiffModalAndProceed)
         return;
     }
     currentPatchBeingReviewed = patchQueue.shift();
-    const { filePath, originalContent, patchedContent, patchOp } = currentPatchBeingReviewed;
-    const dmp = new DMP(); // Use the imported DMP
+    const { filePath, originalContent, patchedContent, patchOp, isNewFile } = currentPatchBeingReviewed;
+    const dmp = new DMP();
     _elements.diffFilePath.textContent = `${filePath} (${patchOp.operation})`;
-    if (patchOp.operation === 'create_file_with_content') {
-        _elements.diffOutputContainer.innerHTML = `<p><b>PROPOSED NEW FILE CONTENT:</b></p><pre style="background:#e6ffe6; padding:5px;">${escapeHtml(patchedContent)}</pre>`;
+
+    if (isNewFile) {
+        _elements.diffOutputContainer.innerHTML = `<p><b>PROPOSED NEW FILE CONTENT:</b></p><pre style="background:#e6ffe6; padding:5px;">${utils.escapeHtml(patchedContent)}</pre>`;
     } else {
         const diff = dmp.diff_main(originalContent, patchedContent);
         dmp.diff_cleanupSemantic(diff);
@@ -265,24 +346,25 @@ function showNextPatchInModal() {
 
 async function closeDiffModalAndProceed(applyChange) {
     if (!currentPatchBeingReviewed) return;
-    const { filePath, patchedContent, patchOp, isNewFile, log, originalContent } = currentPatchBeingReviewed;
+    const { filePath, patchedContent, patchOp, isNewFile, log } = currentPatchBeingReviewed;
 
     if (applyChange) {
         try {
-            if (!_appState.directoryHandle && isNewFile) {
+            if (!appState.directoryHandle && isNewFile) {
                  _elements.aiPatchOutputLog.textContent += `\nUser ACTION: Staged for new file - ${filePath}\n  Details: ${log || "Content set."}\n`;
                  notificationSystem.showNotification(`Staged new file: ${filePath}`, { duration: 2000 });
-            } else if (!_appState.directoryHandle && !isNewFile) {
+            } else if (!appState.directoryHandle && !isNewFile) {
                  _elements.aiPatchOutputLog.textContent += `\nUser ACTION: Staged change for - ${filePath}\n  Details: ${log || "Content set."}\n`;
                  notificationSystem.showNotification(`Staged change for: ${filePath}`, { duration: 2000 });
-            } else if (_appState.directoryHandle) {
-                await fileSystem.writeFileContent(_appState.directoryHandle, filePath, patchedContent);
+            } else if (appState.directoryHandle) { // Only write if a real directory is loaded
+                await fileSystem.writeFileContent(appState.directoryHandle, filePath, patchedContent);
                 _elements.aiPatchOutputLog.textContent += `\nUser ACTION: Applied & Saved - ${filePath}\n  Details: ${log || "Content set."}\n`;
                 notificationSystem.showNotification(`Applied and saved: ${filePath}`, { duration: 2000 });
-            } else {
-                 _elements.aiPatchOutputLog.textContent += `\nUser ACTION: Staged (no dir handle) - ${filePath}\n  Details: ${log || "Content set."}\n`;
-                 notificationSystem.showNotification(`Staged (no dir handle): ${filePath}`, { duration: 2000 });
+            } else { // This case means it's a scaffolded project, no directoryHandle
+                 _elements.aiPatchOutputLog.textContent += `\nUser ACTION: Applied to scaffold - ${filePath}\n  Details: ${log || "Content set."}\n`;
+                 notificationSystem.showNotification(`Applied to scaffold: ${filePath}`, { duration: 2000 });
             }
+
 
             if (isNewFile) {
                 const newFileEntry = {
@@ -291,25 +373,23 @@ async function closeDiffModalAndProceed(applyChange) {
                     type: 'file',
                     size: patchedContent.length,
                     extension: utils.getFileExtension(filePath),
-                    depth: (filePath.split('/').length -1) - (_appState.fullScanData.directoryData.path.split('/').length -1),
-                    entryHandle: _appState.directoryHandle ? await fileSystem.getFileHandleFromPath(_appState.directoryHandle, filePath) : null
+                    depth: (filePath.split('/').length -1) - (appState.fullScanData.directoryData.path.split('/').length -1),
+                    entryHandle: appState.directoryHandle ? await fileSystem.getFileHandleFromPath(appState.directoryHandle, filePath) : null // May be null for scaffold
                 };
 
-                _appState.fullScanData.allFilesList.push(newFileEntry);
-                if (typeof treeView.addFileToTree === 'function') {
-                    treeView.addFileToTree(newFileEntry);
+                if (appState.fullScanData) {
+                    appState.fullScanData.allFilesList.push(newFileEntry);
+                    if (typeof treeView.addFileToTree === 'function') {
+                        treeView.addFileToTree(newFileEntry);
+                    }
                 }
             }
-            // For patches, the patched content becomes the new "original" baseline.
             fileEditor.updateFileInEditorCache(filePath, patchedContent, patchedContent, true);
-
 
         } catch (err) {
             notificationSystem.showNotification(`ERROR: Failed to process patch for ${filePath}. Patch not applied. See console.`, { duration: 4000 });
             console.error(`Error applying/saving patch for ${filePath}:`, err);
-            _elements.aiPatchDiffModal.style.display = 'none';
-            currentPatchBeingReviewed = null;
-            return;
+            // Don't immediately bail, let user decide on next patches
         }
     } else {
         _elements.aiPatchOutputLog.textContent += `\nUser ACTION: Skipped - ${filePath} for operation ${patchOp.operation}.\n`;
@@ -317,14 +397,28 @@ async function closeDiffModalAndProceed(applyChange) {
 
     _elements.aiPatchDiffModal.style.display = 'none';
     currentPatchBeingReviewed = null;
-    showNextPatchInModal();
+
+    if (patchQueue.length > 0) {
+        showNextPatchInModal();
+    } else {
+        notificationSystem.showNotification("All patches reviewed. Creating new version...", { duration: 2000 });
+        // Check if directoryHandle exists for "Applied AI patches to disk project"
+        // vs "Applied AI patches to scaffolded project"
+        let snapshotDescription = "Applied AI patches";
+        if (appState.directoryHandle && appState.directoryHandle.name) {
+            snapshotDescription += ` to ${appState.directoryHandle.name}`;
+        } else if (appState.fullScanData && appState.fullScanData.directoryData && appState.fullScanData.directoryData.name) {
+            snapshotDescription += ` to scaffolded project ${appState.fullScanData.directoryData.name}`;
+        }
+        await triggerSubsequentSnapshot(snapshotDescription);
+    }
 }
 
 export async function processPatches(patchInstructions) {
     if (!patchInstructions || patchInstructions.length === 0) {
         _elements.aiPatchOutputLog.textContent = "No patch instructions provided."; return;
     }
-    if (!_appState.fullScanData || !_appState.fullScanData.allFilesList) {
+    if (!appState.fullScanData || !appState.fullScanData.allFilesList) {
         _elements.aiPatchOutputLog.textContent = "Error: No project loaded or file list unavailable. Load a project first.";
         return;
     }
@@ -352,6 +446,10 @@ export async function processPatches(patchInstructions) {
         showNextPatchInModal();
     } else {
         notificationSystem.showNotification("No changes to review or all patches failed.", { duration: 4000 });
+        // Even if no patches to review, if some succeeded but made no change, or some failed,
+        // we might still want to snapshot the state if any initial calculations changed currentBatchFileStates.
+        // For now, we only snapshot if there was something in the queue that got processed.
+        // If needed, this else block could also call triggerSubsequentSnapshot with a relevant message.
     }
 }
 
@@ -361,19 +459,9 @@ function shorten(text, maxLength = 30) {
     return text.substring(0, maxLength) + "...";
 }
 
-function escapeHtml(unsafe) {
-    if (typeof unsafe !== 'string') return '';
-    return unsafe
-         .replace(/&/g, "&")
-         .replace(/</g, "<")
-         .replace(/>/g, ">")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "'");
-}
 
 export function initAiPatcher(mainAppState, mainElements) {
-    _appState = mainAppState;
-    _elements = mainElements;
+    _elements = mainElements; // appState is now imported directly
 
     _elements.applyAiPatchBtn?.addEventListener('click', () => {
         const patchJson = _elements.aiPatchInput.value;
@@ -392,13 +480,28 @@ export function initAiPatcher(mainAppState, mainElements) {
     _elements.closeAiPatchDiffModal?.addEventListener('click', () => closeDiffModalAndProceed(false));
     _elements.confirmApplyPatchChanges?.addEventListener('click', () => closeDiffModalAndProceed(true));
     _elements.skipPatchChanges?.addEventListener('click', () => closeDiffModalAndProceed(false));
-    _elements.cancelAllPatchChanges?.addEventListener('click', () => {
-        patchQueue = [];
-        closeDiffModalAndProceed(false);
-        _elements.aiPatchOutputLog.textContent += "\n\nUser ACTION: Cancelled all remaining patches.\n";
-        notificationSystem.showNotification("All remaining patches cancelled.", { duration: 3000 });
+    
+    _elements.cancelAllPatchChanges?.addEventListener('click', async () => {
+        const remainingCount = patchQueue.length + (currentPatchBeingReviewed ? 1 : 0);
+        patchQueue = []; // Clear the queue
+        _elements.aiPatchDiffModal.style.display = 'none';
+        currentPatchBeingReviewed = null;
+        if (remainingCount > 0) {
+            _elements.aiPatchOutputLog.textContent += `\n\nUser ACTION: Cancelled ${remainingCount} remaining patches.\n`;
+             // Snapshot the state *before* cancellation if any patches were already applied.
+            let snapshotDescription = "Applied some patches";
+             if (appState.directoryHandle && appState.directoryHandle.name) {
+                snapshotDescription += ` to ${appState.directoryHandle.name}`;
+            } else if (appState.fullScanData && appState.fullScanData.directoryData && appState.fullScanData.directoryData.name) {
+                snapshotDescription += ` to scaffolded project ${appState.fullScanData.directoryData.name}`;
+            }
+             snapshotDescription += ` and cancelled ${remainingCount} operations.`;
+            await triggerSubsequentSnapshot(snapshotDescription);
+        } else {
+            _elements.aiPatchOutputLog.textContent += `\n\nUser ACTION: No patches to cancel.\n`;
+        }
     });
-
+    
     _elements.copyPatchPromptBtn?.addEventListener('click', () => {
         navigator.clipboard.writeText(CAPCA_PROMPT_TEMPLATE.trim())
             .then(() => notificationSystem.showNotification("CAPCA Patch Prompt copied to clipboard!", { duration: 3000 }))
