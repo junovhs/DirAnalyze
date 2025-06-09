@@ -1,160 +1,145 @@
 # DirAnalyze: Current Development Task & Next Steps
 
-**Timestamp:** 2025-06-09T03:30:00Z (Replace with actual timestamp at end of session)
-**Feature Focus:** Project Versioning System – *Restore Functionality*
-**Relevant GitHub Issues:** #23 (UI for Version History), #24 (Core Restore Logic), #25 (Diff Storage)
+**Timestamp:** 2025-06-09T03:45:00Z (Note: User to replace with actual timestamp at end of session)
+**Feature Focus:** Project Versioning System - Restore Functionality (Phase 1.1: Frontend Interactivity)
+**Relevant GitHub Issues:** #23 (UI for Version History - completion), #24 (Core Restore Logic - initial steps)
 
----
+## 1. Current State of Versioning Feature
 
-## 1. Current State of the Versioning Feature
+### 1.1. Completed Components:
+*   **Backend Database Schema:**
+    *   `ProjectVersions` table: Stores snapshot metadata (`version_id` PK AUTOINCREMENT, `parent_version_id`, `timestamp`, `description`).
+    *   `VersionFiles` table: Stores `project_version_id`, `file_path`, `content_hash` (SHA-256), `file_size` for every file in each snapshot.
+    *   `OperationLog` table: General logging; snapshot events are logged here.
+    *   Schema is robustly initialized by the Rust backend (`db_manage.rs`, `version_control.rs`).
+*   **Backend API - Create Snapshots:**
+    *   `POST /api/snapshot/initial`: Accepts `{ project_root_name: String, files: Vec<ScannedFileInfo> }`. Creates `ProjectVersions` entry (parent_id=NULL), populates `VersionFiles`. Logic in `version_control::create_initial_project_snapshot`.
+    *   `POST /api/snapshot/create`: Accepts `{ parent_version_id: i64, description: String, files: Vec<ScannedFileInfo> }`. Creates `ProjectVersions` entry (linked to `parent_version_id`), populates `VersionFiles`. Logic in `version_control::create_subsequent_project_snapshot`.
+*   **Backend API - List Versions:**
+    *   `GET /api/versions`: Queries `ProjectVersions` table, returns JSON array: `Vec<ProjectVersionInfo { version_id, parent_version_id, timestamp, description }>` ordered by `version_id` DESC. Handler in `main.rs`.
+*   **Frontend - Snapshot Creation & Triggering:**
+    *   On local folder load, `main.js::createInitialSnapshot` calculates SHA-256 hashes (via `utils.js::calculateSHA256`) for all files with `entryHandle` and POSTs to `/api/snapshot/initial`. `appState.currentVersionId` is updated.
+    *   After AI Patcher operations, `aiPatcher.js::triggerSubsequentSnapshot` re-hashes all project files (from `appState.fullScanData`, considering editor cache) and POSTs to `/api/snapshot/create` using `appState.currentVersionId` as parent. `appState.currentVersionId` is updated.
+*   **Frontend - Version History Display (Basic List):**
+    *   "Version History" tab in `index.html` (`versionHistoryTab`).
+    *   `js/main.js::fetchAndDisplayVersions` calls `/api/versions` and populates `ul#versionHistoryList` with `<li>` elements (containing `span.version-id`, `span.version-desc`, `span.version-time`).
+    *   `js/uiManager.js::activateTab` calls `fetchAndDisplayVersions` when the tab is activated.
+    *   The "Refresh List" button (`refreshVersionsBtn`) in this tab also calls `fetchAndDisplayVersions`.
 
-### 1.1 Completed Components
+### 1.2. Key Frontend State Variables (in `js/main.js::appState`):
+*   `currentVersionId`: Stores the ID of the latest version snapshot.
+*   `directoryHandle`: File System Access API handle for the project root (null for scaffolded projects).
+*   `fullScanData`: Contains `directoryData` (tree structure) and `allFilesList`.
+*   `selectedVersionToRestoreId`: (To be added) Will store the `version_id` selected by the user in the history list.
 
-| Layer           | Component                                                | Status                                                                                           |
-| --------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| **Database**    | `ProjectVersions`, `VersionFiles`, `OperationLog` tables | **Done** – created & migrated by Rust backend                                                    |
-| **Backend API** | `POST /api/snapshot/initial` (Version 0)                 | **Done** – creates root snapshot                                                                 |
-|                 | `POST /api/snapshot/create` (subsequent)                 | **Done** – stores child snapshots                                                                |
-|                 | `GET  /api/versions` (list)                              | **Done** – returns ordered JSON of versions                                                      |
-| **Frontend**    | *Snapshot creation*                                      | **Done** – initial snapshot after project load; subsequent snapshot after AI patch queue empties |
-|                 | *Version History tab*                                    | **Done** – basic list rendering (read‑only)                                                      |
-
-> **Note** — All snapshot creation currently sends the *full file list* with SHA‑256 hashes and sizes, but **not** file contents.  Full‑content storage/diffing will be addressed in Issue #25.
-
-\### 1.2 HTML Template for a Version‑List Item
-
-```html
+### 1.3. HTML Structure for Version History Item (generated by `js/main.js::fetchAndDisplayVersions`):
 
 <li data-version-id="[version.version_id]">
-    <span class="version-id">Version ID: [version.version_id]</span>
-    (Parent: [version.parent_version_id] or Initial Version)<br/>
+    <span class="version-id">Version ID: [version.version_id]</span>(Parent: [version.parent_version_id] or Initial Version)<br>
     <span class="version-desc">[version.description]</span>
-    <span class="version-time">Timestamp: [formattedTimestamp]</span>
+    <span class="version-time">Timestamp: [formattedTimestamp]</span>
 </li>
-```
 
-\### 1.3 Key Front‑End State Variables
+### 1.4. HTML for Restore Actions (in index.html, initially hidden):
 
-* `appState.currentVersionId` – ID of the latest snapshot for the loaded project.
-* `appState.directoryHandle` – File‑System Access API handle for the project root (null for scaffolded projects).
-* `appState.fullScanData`    – `{ directoryData, allFilesList }`; each file entry stores its `entryHandle` when the project originates from disk.
+<div class="button-container" style="display:none;" id="restoreVersionActions">
+    <button id="restoreSelectedVersionBtn" class="action-button" disabled>Restore Selected Version</button>
+</div>
 
----
+## 2. Immediate Next Task: Implement Frontend Interactivity for Version Restore (Phase 1.1 of Restore Functionality)
 
-\## 2. Immediate Next Tasks – *Restore Functionality* (Phase 1)
+**Goal:** Allow users to click on a version in the "Version History" list, visually indicate the selection, and enable a "Restore Selected Version" button. Clicking this button will currently show a confirmation and log the intent, paving the way for actual restore logic in the next phase.
 
-The rollout is split into two short iterations so that UI work can be merged quickly while backend content‑restore design is still in flux.
+**Relevant Files:** `js/main.js` (for new state, event listeners, and selection logic), `css/components.css` (or inline in `index.html` for styling).
 
-\### 2.1 Phase 1.1 – **Front‑End Interactivity**  (#23)
+### 2.1. Detailed Steps for Frontend Implementation:
 
-| Goal | Allow users to select a version in the *Version History* tab and press **Restore Selected Version**.  No backend changes yet. |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------- |
+1.  **Add New State Variable (in `js/main.js`):**
+    *   Inside `appState`, add: `selectedVersionToRestoreId: null,`
 
-\#### Required Front‑End Changes
+2.  **Modify `populateElements` (in `js/main.js`):**
+    *   Ensure `restoreVersionActions` (the div container) and `restoreSelectedVersionBtn` (the button) are correctly mapped from their IDs in `index.html` to `window.diranalyze.elements`.
+        *   `restoreVersionActions: 'restoreVersionActions',`
+        *   `restoreSelectedVersionBtn: 'restoreSelectedVersionBtn',`
 
-1. **Make list items selectable**
+3.  **Modify `fetchAndDisplayVersions` (in `js/main.js`):**
+    *   **Inside the `versions.forEach(version => { ... });` loop:**
+        *   After creating the `listItem`, add a `click` event listener to it.
+        *   **Click Handler Logic for `listItem`:**
+            *   Get all existing `<li>` elements within `els.versionHistoryList`. Loop through them and remove the class `active-version`.
+            *   Add the class `active-version` to the currently clicked `listItem`.
+            *   Set `appState.selectedVersionToRestoreId = version.version_id;`
+            *   Make the restore actions container visible: `els.restoreVersionActions.style.display = 'flex';` (or 'block' if more appropriate for your CSS).
+            *   Enable the restore button: `els.restoreSelectedVersionBtn.disabled = false;`
 
-   * In `fetchAndDisplayVersions` ( `js/main.js` ):
+4.  **Modify `setupEventListeners` (in `js/main.js`):**
+    *   Add a `click` event listener to `els.restoreSelectedVersionBtn`.
+    *   **Click Handler Logic for `restoreSelectedVersionBtn`:**
+        *   Check if `appState.selectedVersionToRestoreId` is not `null`. If it's `null`, show a notification ("Please select a version from the list first.") and return.
+        *   Display a confirmation dialog:
+            ```javascript
+            if (confirm(`Are you sure you want to proceed with restoring to Version ${appState.selectedVersionToRestoreId}? Current local files may be overwritten or changed.`)) {
+                console.log(`User confirmed restore to version: ${appState.selectedVersionToRestoreId}. Next step: Implement backend call and file operations.`);
+                notificationSystem.showNotification(`Preparing to restore Version ${appState.selectedVersionToRestoreId}... (Full restore logic pending)`, { duration: 3500 });
+                
+                // Placeholder for future actual restore initiation
+                // els.loader.textContent = "Initiating restore to Version " + appState.selectedVersionToRestoreId + "...";
+                // els.loader.classList.add('visible');
+                // await initiateRestore(appState.selectedVersionToRestoreId); // This call will be for the next phase
+                // els.loader.classList.remove('visible');
+            } else {
+                console.log("User cancelled restore operation.");
+                // Optionally, clear appState.selectedVersionToRestoreId and deselect UI if desired
+            }
+            ```
 
-     * Add a `click` listener to every `<li>`.
-     * On click: remove `active-version` class from siblings, add it to the clicked node, set `appState.selectedVersionToRestoreId`.
-     * Enable the *Restore* button container `elements.restoreVersionActions`.
+5.  **Add CSS Styling (e.g., in `css/components.css` or an inline `<style>` block in `index.html`):**
+    *   Define a style for the selected version item:
+        ```css
+        #versionHistoryList li.active-version {
+            background-color: var(--accent-color) !important; /* Use important if other hovers conflict */
+            color: var(--button-active-text) !important;
+            border-color: var(--accent-color) !important;
+        }
+        #versionHistoryList li.active-version .version-parent,
+        #versionHistoryList li.active-version .version-time,
+        #versionHistoryList li.active-version .version-desc { /* Ensure all text inside becomes readable */
+            color: var(--button-active-text) !important;
+            opacity: 0.9;
+        }
+        ```
 
-2. **Restore button stub**
+6.  **Update `resetUIForProcessing` (in `js/main.js`):**
+    *   When a new project is loaded or the current one is cleared, reset the restore UI state:
+        *   Set `appState.selectedVersionToRestoreId = null;`
+        *   If `els.restoreVersionActions` exists, set `els.restoreVersionActions.style.display = 'none';`
+        *   If `els.restoreSelectedVersionBtn` exists, set `els.restoreSelectedVersionBtn.disabled = true;`
+        *   Ensure any `active-version` class is removed from `versionHistoryList` items if the list is not cleared entirely. (Clearing innerHTML of `versionHistoryList` is already done, which handles this).
 
-   * In `setupEventListeners` add handler for `elements.restoreSelectedVersionBtn` that:
+### 2.2. Backend Changes for this Specific Sub-Task (Phase 1.1):
+*   None. The existing `GET /api/versions` endpoint is sufficient for this phase.
 
-     1. Confirms selection exists; if not, alert user.
-     2. `confirm("Are you sure … ?")` → if *Yes*: `console.log("User initiated restore …")` (placeholder).
+## 3. Next Major Task (After completing Phase 1.1 above): Implement Restore Logic - Phase 1.2 (Backend Endpoint & Basic Frontend Restore Action)
 
-3. **Styling**  (Add to `css/components.css`):
-
-```css
-\#versionHistoryList li.active-version {
-background-color: var(--accent-color);
-color: var(--button-active-text);
-border-color: var(--accent-color);
-}
-\#versionHistoryList li.active-version .version-parent,
-\#versionHistoryList li.active-version .version-time {
-opacity: 0.85;
-}
-```
-
-> Phase 1.1 delivers *visible* restore UX without touching data.
-
-\### 2.2 Phase 1.2 – **Backend Restore Endpoint & Minimal Validation**  (#24)
-
-| Goal | Provide an endpoint that returns the file list (+hashes) for a historical version so the front‑end can prune/validate the local project. |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-
-\#### New REST Route
-
-* `POST /api/versions/{version_id}/restore`
-* **Handler** `handle_restore_version` (Axum) calls:
-
-  * `version_control::get_files_and_hashes_for_version(conn, version_id)` → `Vec<ScannedFileInfo>`.
-
-\#### Response Type
-
-```rust
-\#\[derive(Serialize)]
-pub struct RestoreResponse {
-status: String,                      // "success"
-version\_id\_restored: i64,
-target\_files: Vec<ScannedFileInfo>,  // path, hash, size
-}
-```
-
-*No file content is returned yet.*
-
-\#### Front‑End `initiateRestore(versionId)` Draft
-
-1. `fetch('/api/versions/' + versionId + '/restore', { method: 'POST' })`.
-2. Iterate `target_files`:
-
-   * Read each local file (if present) via `entryHandle`.
-   * Compute SHA‑256; compare to historical hash.
-   * Report mismatches/missing files to user.
-3. Find any local files **not** present in `target_files`; after confirmation, delete via `entryHandle.remove()`.
-4. Refresh `appState.fullScanData`, re‑render tree, then create a **snapshot** with description *"Attempted restore to Version X (prune/validate)"*.
-
-> This delivers partial restore (structure validation).  True content‑level rollback will follow in Phase 2.
-
----
-
-\## 3. Future Task – *Phase 2: Diff‑Based Content Restore*  (#25)
-
-1. Create `FileDiffs` table storing delta blobs (e.g., binary‑diff or text‑patch).
-2. Snapshot creation logic stores **diff** from previous version instead of full content.
-3. Restore endpoint reconstructs full file content on demand by replaying diffs from Version 0 → target.
-4. Front‑end receives `{ files_to_write, files_to_delete }` with full contents for write‑back (or streams them individually on demand).
-
----
-
-\## 4. Outstanding Questions / Decisions
-
-1. **Storage Cost vs. Speed** – full content vs. diffs; Evaluate generic binary diff crate (e.g., `bsdiff‑rs`) vs. rolling‑hash chunk store.
-2. **Project Root Path** – The backend currently has no direct access to the user’s disk path; all content travels through the client.  Continue client‑only file IO or shift to backend cache for cloud‑hosted projects?
-3. **Deletion semantics** – Should a snapshot explicitly record *deleted* files, or is absence from `VersionFiles` sufficient?
-4. **Access Control** – multi‑user scenarios & locking during restore.
-
----
-
-## 5. Quick Reference – State Changes Across Phases
-
-| Phase        | Front‑End Variable                    | When Updated                    |
-| ------------ | ------------------------------------- | ------------------------------- |
-| Any Snapshot | `appState.currentVersionId`           | After `/api/snapshot/*` success |
-| Phase 1.1    | `appState.selectedVersionToRestoreId` | On version‑list click           |
-| Phase 1.2    | *n/a* (uses existing vars)            | –                               |
-
----
-
-## 6. Next Check‑In
-
-*After Phase 1.1 is merged, coordinate with backend team for REST contract review before starting Phase 1.2 implementation.*
-
----
-
-**End of File**
+*   **Backend (`version_control.rs` and `main.rs`):**
+    *   Create new function `get_files_and_hashes_for_version(conn: &Connection, version_id: i64) -> Result<Vec<ScannedFileInfo>, rusqlite::Error>` in `version_control.rs`. This will query `VersionFiles` and return a vector of structs containing `path`, `content_hash`, and `file_size` for all files associated with the given `version_id`.
+    *   In `main.rs`, create a new Axum handler `handle_restore_version(State(app_state), Path(version_id): Path<i64>)`.
+    *   This handler will call `get_files_and_hashes_for_version`.
+    *   Define a new response struct `RestoreInfoResponse { status: String, version_id_restored: i64, target_files: Vec<ScannedFileInfo> }`.
+    *   Add a new route `POST /api/versions/:version_id/restore` mapped to this handler.
+*   **Frontend (`js/main.js`):**
+    *   Implement the `initiateRestore(versionId)` function.
+    *   It will `fetch` the `POST /api/versions/:version_id/restore` endpoint.
+    *   On successful response, it will receive `target_files`.
+    *   **Initial Restore Action (Simplified):**
+        *   For each file in `appState.fullScanData.allFilesList` (current local files):
+            *   If its path is NOT in `restoreData.target_files`: Confirm with user and then (if `appState.directoryHandle` exists) use `fileInfo.entryHandle.remove()`. Update `appState.fullScanData` and tree view.
+        *   For each file in `restoreData.target_files`:
+            *   Attempt to read the current local file content using its `entryHandle`.
+            *   Calculate its SHA-256 hash.
+            *   If the local file doesn't exist: Notify user "File X listed in Version Y is missing locally. Cannot recreate."
+            *   If hashes differ: Notify user "File X has been modified since Version Y. Content restore not yet implemented."
+            *   If hashes match: Notify user "File X matches Version Y."
+        *   After processing all files, re-scan the project (`processDirectoryEntryRecursive` if disk-based, or rebuild from cache if scaffold).
+        *   Trigger a new snapshot with a description like "Restored to Version X (validation & prune only)". Update `appState.currentVersionId`.
+        *   Refresh the version history display.
