@@ -1,3 +1,24 @@
+<!--
+AI UPDATE INSTRUCTIONS:
+This document ("Current Development Task & Next Steps") is a living snapshot of the project's immediate focus. It's crucial for maintaining continuity between development sessions.
+
+To update this document at the END of a development session:
+1.  **Timestamp:** Update the main timestamp at the top to reflect the end of the current session.
+2.  **Feature Focus & Relevant Issues:** Ensure these accurately reflect what was worked on and what's next.
+3.  **Section 1: Current State of Versioning Feature:**
+    *   Move items from "Immediate Next Task" (Section 2) of the *previous* version of this document to "Completed Components" (Section 1.1) if they were successfully implemented in the current session. Be specific about what was done (e.g., "Backend API endpoint X created", "Frontend logic Y in file Z now handles...").
+    *   Ensure all sub-sections (1.1, 1.2 - Key State Variables, 1.3 - HTML Structures, etc.) are accurate and reflect the codebase *as it stands at the end of the session*.
+4.  **Section 2: Immediate Next Task:**
+    *   Clearly define the *very next set of actionable steps* for the *next* development session. This should be detailed enough for another developer (or AI) to pick up with minimal ambiguity.
+    *   Break it down into sub-tasks if necessary (e.g., Frontend Changes, Backend Changes).
+    *   Specify file locations and function names where changes are expected.
+    *   Include pseudo-code or specific logic points if helpful.
+5.  **Section 3: Next Major Task (After completing Section 2):**
+    *   Briefly outline the subsequent larger piece of work that follows the "Immediate Next Task". This provides context and direction.
+6.  **Review for Clarity & Accuracy:** Ensure the entire document is clear, technically accurate, and directly reflects the project's current state and immediate future.
+Provide the complete updated Markdown content for this file.
+-->
+
 # DirAnalyze: Current Development Task & Next Steps
 
 **Timestamp:** 2025-06-09T03:45:00Z (Note: User to replace with actual timestamp at end of session)
