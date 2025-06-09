@@ -29,7 +29,7 @@ For a detailed understanding of the project's vision, target users, and key use 
 | Browser UI (HTML/JS/CSS)       | **Functional**       | Project loading, tree view, stats, text reports, file editing (via File System Access API). |
 | AI Debriefing Assistant        | **Functional**       | Packages project context for LLMs.                           |
 | AI Patcher Workflow            | **Functional**       | Applies AI-generated CAPCA patches to local files with review. |
-| Versioning System Foundation   | **In Progress**      | SQLite schema and backend API for initial project snapshots are complete. Further development ongoing. |
+| Versioning System Foundation   | **In Progress**      | SQLite schema and backend APIs for creating initial/subsequent snapshots and listing versions are functional. UI displays version history. Restore functionality planned. |
 | Hierarchical Semantic Sketch   | Spec Drafted         | Core logic for intelligent context minimization is planned.    |
 
 ## 3. Quick Start
@@ -71,7 +71,7 @@ DirAnalyze adheres to several core principles:
 ## 6. Planned Core Architecture
 
 ```text
-Browser UI ─── HTTP/WebSocket ───┐
+Browser UI ─── HTTP/WebSocket ────┐
                                   │
                                   ▼
             DirAnalyze Backend Binary (Rust)

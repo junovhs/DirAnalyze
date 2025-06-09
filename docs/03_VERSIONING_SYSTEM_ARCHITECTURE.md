@@ -174,21 +174,25 @@ CREATE TABLE IF NOT EXISTS FileDiffs (
 ```
     *   **Action:** Similar to initial snapshot, but sets `parent_version_id` and potentially populates `FileDiffs`.
 
-### 4.3. Listing Versions - Planned
+### 4.3. Listing Versions - Implemented
 
-1.  **Backend API Endpoint (Proposed):** `GET /api/versions`
-    *   **Action:** Queries `ProjectVersions` table, orders by timestamp or ID.
+1.  **Backend API Endpoint:** `GET /api/versions`
+    *   **Action:** Queries `ProjectVersions` table, orders by `version_id` DESC.
     *   **Response (Example):**
 ```json
 [
-  { "version_id": 1, "parent_version_id": null, "timestamp": "...", "description": "Initial load" },
-  { "version_id": 2, "parent_version_id": 1, "timestamp": "...", "description": "Applied patch X" }
+  { "version_id": 2, "parent_version_id": 1, "timestamp": "...", "description": "Applied AI patches" },
+  { "version_id": 1, "parent_version_id": null, "timestamp": "...", "description": "Initial snapshot of project: MyProject" }
 ]
 ```
+**Frontend Action:**
+*   **The "Version History" tab fetches data from this endpoint.**
+*   **Displays version information in a list.**
+(Next steps: Make list items selectable for restore).**
 
 ### 4.4. Restoring a Version - Planned
 
-1.  **Frontend Trigger:** User selects a version from the timeline and clicks "Restore."
+1.  **Frontend Trigger:** User selects a version from the timeline and clicks "Restore." User selects a version from the displayed version history list (UI for list is implemented, selection interactivity is next).
 2.  **Backend API Endpoint (Proposed):** `POST /api/versions/{version_id}/restore`
     *   **Action:**
         1.  Identify all files and their target `content_hash` for the requested `version_id` from `VersionFiles`.

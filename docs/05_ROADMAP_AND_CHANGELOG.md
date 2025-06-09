@@ -31,14 +31,14 @@ This document outlines the planned development path (Roadmap) for DirAnalyze and
 - [x] CLI `serve` command; proxy to OpenAI, Anthropic, Ollama.
 - [x] Deterministic hash log v1 (SQLite schema for versioning: ProjectVersions, VersionFiles, OperationLog).
 - [x] Backend API for initial project snapshot (Version 0).
-- [ ] Frontend: Calculate file hashes & send initial snapshot data to backend API (Issue #21).
-- [ ] Backend: API & Logic for subsequent version snapshots (post-patch) (Issue #22).
+- [x] Frontend: Calculate file hashes & send initial snapshot data to backend API (Issue #21).
+- [x] Backend: API & Logic for subsequent version snapshots (post-patch) (Issue #22).
 - [ ] Tree-sitter parsers: Swift & JS (Issue #20).
 - [ ] Sketch index builder + budget walker (Hierarchical Semantic Sketch foundation).
 - [ ] TruffleHog gate — hard fail on secret detection before LLM send.
 
 ### Version 0.3 - CLI Alpha & Versioning Enhancements (Planned)
-- [ ] UI: Display version history timeline (Issue #23).
+- [ ] UI: Display version history timeline (Issue #23) (Basic list display implemented; interactivity and restore button pending).
 - [ ] Core: Restore project to a selected version (Issue #24).
 - [ ] Backend: Store and use file diffs for versioning optimization (Issue #25).
 - [ ] 10-prompt retrieval benchmark vs. naive FTS (for Semantic Sketch evaluation).
@@ -84,27 +84,25 @@ Open an issue with the **help-wanted** label to propose or adopt a task.
 
 ### Unreleased
 
+#### Added
+- **Versioning:** Backend API endpoint (`GET /api/versions`) to list all project versions.
+- **Versioning:** Backend API (`POST /api/snapshot/create`) and logic for creating subsequent version snapshots, linked to a parent version.
+- **Versioning:** Frontend "Version History" tab to display the list of versions fetched from the backend.
+- **Versioning:** Frontend AI Patcher now triggers the creation of a subsequent version snapshot after patches are applied.
+- **Frontend:** Implemented SHA-256 file hashing on the client-side for initial project snapshots.
+- **Frontend:** Initial project snapshot data (file list, hashes, sizes) is now sent to the backend (`POST /api/snapshot/initial`) upon loading a local project.
+
+#### Changed
+- **Versioning:** `appState` in `main.js` now tracks `currentVersionId`.
+- **Docs:** Updated Versioning System Architecture and Roadmap to reflect current progress.
+
+#### Fixed
+- Resolved multiple "UI Element ID not found" errors by correcting the `elementIds` map in `main.js` and ensuring `index.html` modal structures are complete.
+- Corrected the full `CAPCA_PROMPT_TEMPLATE` in `aiPatcher.js`.
+
+#### Previously Unlisted (from v0.2.0-alpha.1)
 *   **Added:** Foundational backend infrastructure for project versioning:
     *   SQLite database schema for `ProjectVersions`, `VersionFiles`, `OperationLog`.
     *   Backend API endpoint (`/api/snapshot/initial`) to create an initial "Version 0" snapshot of a project, storing file paths, content hashes, and sizes.
 *   **Changed:** Updated documentation structure for better organization and comprehensiveness.
 *   **Changed:** Updated GitHub issue management process and created detailed issues for versioning feature development.
-
-<!--
-Template for new releases:
-
-## [X.Y.Z] - YYYY-MM-DD
-### Added
-- New feature A.
-- New feature B.
-### Changed
-- Update to existing feature C.
-- Refactoring of module D.
-### Fixed
-- Bug E in component F (Closes #issue_number).
-- Typo in documentation.
-### Removed
-- Deprecated feature G.
-### Security
-- Addressed vulnerability H.
--->
