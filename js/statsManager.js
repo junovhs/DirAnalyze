@@ -1,74 +1,64 @@
-import { elements, appState } from './main.js'; // Added appState for originalFullData context
+import { elements } from './main.js';
 import { formatBytes } from './utils.js';
 
-// Display global statistics based on the provided data
-export function displayGlobalStats(currentDisplayData, originalFullData) {
-    if (!currentDisplayData || !currentDisplayData.directoryData) {
-        elements.globalStatsDiv.innerHTML = "<div class='stat-item'>No data to display for current selection.</div>";
-        elements.selectionSummaryDiv.style.display = 'none';
-        elements.fileTypeTableBody.innerHTML = "<tr><td colspan='3'>No files in current selection.</td></tr>";
-        return;
-    }
-    
-    const rootNode = currentDisplayData.directoryData;
-    const allFiles = currentDisplayData.allFilesList;
-    const allFolders = currentDisplayData.allFoldersList;
+export function update(analyzedData, selectedNode = null) {
+    const { fileList, folderList, dependencyMap } = analyzedData;
 
-    const selectedFileCount = allFiles.length;
-    const selectedDirCount = allFolders.length; // This is count of folder *entries* in the view
-    const selectedTotalSize = allFiles.reduce((sum, f) => sum + f.size, 0); // Original sizes
-    const avgFileSize = selectedFileCount > 0 ? selectedTotalSize / selectedFileCount : 0;
+    // --- Global Stats ---
+    const totalFiles = fileList.length;
+    const totalFolders = folderList.length;
+    const totalSize = fileList.reduce((sum, f) => sum + f.size, 0);
+    const totalLOC = fileList.reduce((sum, f) => sum + (f.complexity?.loc || 0), 0);
 
-    // Use appState.fullScanData as the definitive originalFullData if not explicitly passed or different.
-    const actualOriginalData = originalFullData || appState.fullScanData;
-
-    if (actualOriginalData && (currentDisplayData !== actualOriginalData && appState.selectionCommitted)) {
-        const omittedFileCount = actualOriginalData.allFilesList.length - selectedFileCount;
-        const omittedTotalSize = actualOriginalData.directoryData.totalSize - selectedTotalSize;
-        // dirCount in actualOriginalData.directoryData refers to subdirectories within it, not the flat list.
-        // For omitted dir entries, use the flat list counts.
-        const omittedDirCount = actualOriginalData.allFoldersList.length - selectedDirCount;
-        
-        elements.selectionSummaryDiv.innerHTML = `Displaying stats for <strong>${selectedFileCount} selected files</strong> (${formatBytes(selectedTotalSize)}) and <strong>${selectedDirCount} selected folder entries</strong>.<br>
-        ${omittedFileCount} files (${formatBytes(omittedTotalSize)}) and ${omittedDirCount} folder entries were omitted from view.`;
-        elements.selectionSummaryDiv.style.display = 'block';
-    } else {
-         elements.selectionSummaryDiv.innerHTML = `Displaying stats for all ${selectedFileCount} scanned files (${formatBytes(selectedTotalSize)}) and ${selectedDirCount} folder entries.`;
-        elements.selectionSummaryDiv.style.display = 'block';
-    }
-    
-    elements.globalStatsDiv.innerHTML = `
-        <div class="stat-item"><strong>Root Folder:</strong> ${rootNode.name}</div>
-        <div class="stat-item"><strong>Files in View:</strong> ${selectedFileCount}</div>
-        <div class="stat-item"><strong>Folders in View (Entries):</strong> ${selectedDirCount}</div>
-        <div class="stat-item"><strong>Total Size (Original Files in View):</strong> ${formatBytes(selectedTotalSize)}</div>
-        <hr style="border-color: var(--border-color);">
-        <div class="stat-item"><strong>Deepest Level (Original Scan):</strong> ${actualOriginalData?.maxDepth || 'N/A'}</div>
-        <div class="stat-item"><strong>Avg. File Size (View, Original):</strong> ${formatBytes(avgFileSize)}</div>
-        <div class="stat-item"><strong>Empty Dirs (Original Scan):</strong> ${actualOriginalData?.emptyDirCount || 'N/A'}</div>
+    elements.statsContainer.innerHTML = `
+        <h4>Global Project Stats</h4>
+        <p><strong>Total Files:</strong> ${totalFiles}</p>
+        <p><strong>Total Folders:</strong> ${totalFolders}</p>
+        <p><strong>Total Size:</strong> ${formatBytes(totalSize)}</p>
+        <p><strong>Total Lines of Code:</strong> ~${totalLOC.toLocaleString()}</p>
     `;
 
-    updateFileTypeTable(allFiles); // Uses original file sizes from the list
+    // --- Selected Item Stats & Dependencies ---
+    if (selectedNode) {
+        let depsHtml = `<h4>${selectedNode.type === 'folder' ? 'Folder' : 'File'}: ${selectedNode.name}</h4>`;
+        
+        if (selectedNode.type === 'file') {
+            depsHtml += `<p><strong>Size:</strong> ${formatBytes(selectedNode.size)}</p>`;
+            depsHtml += `<p><strong>Complexity:</strong> ${selectedNode.complexity.loc} LOC (Score: ${selectedNode.complexity.score})</p>`;
+            
+            const deps = dependencyMap.get(selectedNode.path);
+            if (deps) {
+                depsHtml += `<h4>Imports (${deps.imports.length})</h4>
+                             <ul>${deps.imports.map(i => `<li>${i.replace(analyzedData.tree.name + '/', '')}</li>`).join('') || '<li>None</li>'}</ul>
+                             <h4>Imported By (${deps.importedBy.length})</h4>
+                             <ul>${deps.importedBy.map(i => `<li>${i.replace(analyzedData.tree.name + '/', '')}</li>`).join('') || '<li>None</li>'}</ul>`;
+            } else {
+                depsHtml += `<p>No dependency data for this file type.</p>`;
+            }
+        } else { // It's a folder
+            // Recursively count stats for the folder
+            const folderStats = calculateFolderStats(selectedNode, fileList);
+            depsHtml += `<p><strong>Files in Folder:</strong> ${folderStats.fileCount}</p>`;
+            depsHtml += `<p><strong>Total Size:</strong> ${formatBytes(folderStats.totalSize)}</p>`;
+            depsHtml += `<p><strong>Total LOC:</strong> ~${folderStats.locCount.toLocaleString()}</p>`;
+        }
+        elements.depsContent.innerHTML = depsHtml;
+    } else {
+        elements.depsContent.innerHTML = '<div class="empty-notice">Select a file or folder to see details.</div>';
+    }
 }
 
-// Update the file type breakdown table
-function updateFileTypeTable(filesList) {
-    const selectedFileTypes = {};
-    filesList.forEach(file => {
-        if (!selectedFileTypes[file.extension]) selectedFileTypes[file.extension] = { count: 0, size: 0 };
-        selectedFileTypes[file.extension].count++;
-        selectedFileTypes[file.extension].size += file.size; // Uses original size
-    });
+function calculateFolderStats(folderNode, allFiles) {
+    let fileCount = 0;
+    let totalSize = 0;
+    let locCount = 0;
     
-    const sortedFileTypes = Object.entries(selectedFileTypes).sort(([,a],[,b]) => b.size - a.size); 
-    elements.fileTypeTableBody.innerHTML = ''; 
-    
-    if (sortedFileTypes.length === 0) {
-        elements.fileTypeTableBody.innerHTML = `<tr><td colspan="3">${filesList.length > 0 ? 'No files with extensions in current view.' : 'No files in current view.'}</td></tr>`;
-    } else {
-        sortedFileTypes.forEach(([ext, data]) => {
-            const row = elements.fileTypeTableBody.insertRow();
-            row.innerHTML = `<td>${ext}</td><td>${data.count}</td><td>${formatBytes(data.size)}</td>`;
-        });
+    for(const file of allFiles) {
+        if (file.path.startsWith(folderNode.path + '/')) {
+            fileCount++;
+            totalSize += file.size;
+            locCount += file.complexity?.loc || 0;
+        }
     }
+    return { fileCount, totalSize, locCount };
 }

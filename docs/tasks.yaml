@@ -1,0 +1,142 @@
+# tasks.yaml for diranalyze-cartographer ("The Codebase MRI")
+# Version: 2.1 (Enhanced with Architectural Tests & Dev Experience improvements)
+# This file defines the complete lifecycle for a multi-language, WASM-powered web application.
+
+version: "2.1"
+
+vars:
+  repo_root: "."
+  # Added explicit directories for clarity
+  SRC_JS_DIR: "src/frontend"
+  SRC_RUST_DIR: "src/rust"
+  WASM_CRATE_PATH: "src/rust/parser" # Path to the wasm-pack crate
+  TEST_DIR: "tests"
+  DIST_DIR: "dist"
+  WASM_PKG_DIR: "pkg" # Output for wasm-pack
+
+# ====================================================================
+# 1. QUALITY & SECURITY GATES (Linting & Auditing)
+# ====================================================================
+tasks:
+  lint:
+    desc: "Run linters for all languages to ensure code quality and consistency."
+    cmds:
+      # Kept your original, excellent multi-language linting setup
+      - npx eslint {{.SRC_JS_DIR}}/**/*.ts
+      - cargo clippy --workspace -- -D warnings
+      - ruff check {{.repo_root}}
+      - golangci-lint run ./...
+
+  # NEW: Added a dedicated task for checking dependency security vulnerabilities.
+  audit-deps:
+    desc: "Audit dependencies for known security vulnerabilities."
+    cmds:
+      - npm audit
+      - cargo audit
+
+# ====================================================================
+# 2. TESTING (UNIT, ARCHITECTURAL, & FUZZ)
+# ====================================================================
+  test:
+    desc: "Run all unit tests for frontend and backend components."
+    deps: [lint]
+    cmds:
+      # Kept your original multi-language test commands
+      - npm test
+      - cargo test --workspace
+      - go test ./...
+      - pytest
+
+  fuzz:
+    desc: "Run fuzz tests against parser and other critical components."
+    cmds:
+      # Kept your original fuzz testing commands
+      - cargo fuzz run parser
+      - go test -fuzz=.
+      - python tools/pyfuzz.py
+
+  # NEW: Added a dedicated task for the mandated architectural stress tests.
+  # This separates them from unit tests, highlighting their importance.
+  test-architectural:
+    desc: "Run critical stress tests for 'Fan-Out' and 'Labyrinth' scenarios."
+    deps: [lint]
+    cmds:
+      - echo "Running architectural resilience tests..."
+      # This assumes you use a browser-based test runner like Playwright or Cypress
+      # to test the fully compiled application in a real browser environment.
+      - npx playwright test {{.TEST_DIR}}/architectural/
+
+  # TWEAKED: Created a master test command to run all test types.
+  test-all:
+    desc: "Run the complete test suite: unit, architectural, and fuzz."
+    deps:
+      - test
+      - test-architectural
+      - fuzz
+
+# ====================================================================
+# 3. BUILD & DEVELOPMENT
+# ====================================================================
+  # NEW: A dedicated task for the WASM parser build.
+  # This makes the build process clearer and more modular.
+  build-parser:
+    desc: "Build the Rust parser into a WebAssembly package."
+    sources:
+      - "{{.WASM_CRATE_PATH}}/**/*.rs"
+      - "{{.WASM_CRATE_PATH}}/Cargo.toml"
+    generates:
+      - "{{.WASM_PKG_DIR}}/diranalyze_parser.js"
+      - "{{.WASM_PKG_DIR}}/diranalyze_parser_bg.wasm"
+    cmds:
+      - wasm-pack build {{.WASM_CRATE_PATH}} --target web --out-dir {{.WASM_PKG_DIR}}
+
+  # TWEAKED: Renamed to `build-frontend` and made it depend on the WASM build.
+  build-frontend:
+    desc: "Bundle the frontend JavaScript and assets using Vite."
+    deps: [build-parser, test] # Ensures parser is built and tests pass first.
+    cmds:
+      # Kept your use of Vite, a great choice for modern JS bundling.
+      - npx vite build
+
+  # TWEAKED: Renamed your `build-web` to `build` for simplicity.
+  build:
+    desc: "Run the complete build process for the application."
+    deps:
+      - build-parser
+      - build-frontend
+
+  # NEW: Added a dedicated development server task for a better DX.
+  dev:
+    desc: "Start the development server with hot-reloading."
+    deps: [build-parser] # Ensures the latest parser is available.
+    cmds:
+      # `vite` serves the `index.html` and provides a great dev experience.
+      - npx vite dev
+
+# ====================================================================
+# 4. PACKAGING & CLEANUP
+# ====================================================================
+  package:
+    desc: "Create a distributable release archive."
+    deps: [build]
+    cmds:
+      # Kept your original packaging command.
+      - tar -czf diranalyze-${CI_COMMIT_SHA}.tgz {{.DIST_DIR}}/
+
+  clean:
+    desc: "Wipe cache, build artifacts, and WASM packages."
+    cmds:
+      # Added the WASM package directory to the cleanup.
+      - rm -rf dist {{.WASM_PKG_DIR}} target node_modules
+
+# ====================================================================
+# 5. DEFAULT
+# ====================================================================
+  default:
+    desc: "Run the full local CI pipeline: quality checks, all tests, and build."
+    # TWEAKED: Updated the default task to include the new, more granular steps.
+    deps:
+      - lint
+      - audit-deps
+      - test-all
+      - build
