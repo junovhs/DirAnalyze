@@ -106,19 +106,8 @@ The easiest way to use `diranalyze` is via the official hosted version:
 
 ## Development & Contribution
 
-We welcome contributions! This project uses a task-runner to manage its complex, multi-language build process. Please familiarize yourself with the `tasks.yaml` file.
+If you'd like to contribute, open an issue or submit a pull request!
 
-**Key Commands:**
+## License  
+This project is licensed under the MIT License. See the LICENSE file for details.
 
-*   `npm run setup`: Install all necessary tools and dependencies.
-*   `npm run lint`: Check all code for style issues.
-*   `npm test`: Run the complete test suite (unit, architectural, and fuzz tests).
-*   `npm run build`: Create a final, production-ready build in the `/dist` directory.
-
-Please see `CONTRIBUTING.md` for more detailed guidelines on our development process and how to submit a pull request.
-
----
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
