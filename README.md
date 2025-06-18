@@ -79,8 +79,8 @@ graph TD
 
 ### Using the Live Version
 
-The easiest way to use `diranalyze` is via the official hosted version:
-[**[your-github-username].github.io/diranalyze-cartographer/**](https://[your-github-username].github.io/diranalyze-cartographer/)
+The easiest way to use `diranalyze` is via the official hosted version:  
+[**junovhs.github.io/diranalyze/**](https://junovhs.github.io/diranalyze/)
 
 ### Running Locally
 
