@@ -1,113 +1,99 @@
-# DirAnalyze Cartographer
+# DirAnalyze
 
-### The MRI for Your Codebase
+*The tiny, local-first AI cockpit for huge codebases.*
 
-**DirAnalyze Cartographer** is a high-performance, polyglot code visualization tool that runs entirely in your browser. Drop a project folder and get an instant, interactive "MRI" of its architecture, revealing hidden complexity, critical dependencies, and structural risks.
+- **Single binary (planned)** – no Docker, no Node, no Python runtime
+- **Paste-and-go (planned)** – drop a repo, paste your LLM key, start coding
+- **Hierarchical Semantic Sketch (planned)** – budget-bounded tree of package → file → symbol summaries; ships only what the model needs.
+- **Hard secret gate (planned)** – TruffleHog scan; refuses to leak keys or tokens.
+- **Deterministic hash log & Versioning (in progress)** – Every file state, prompt, and diff can be recorded for audit, replay, and version control. Initial project snapshotting (Version 0) API and database schema are functional.
+- **MIT licence** – fork it, remix it, just keep the header.
 
-It's designed for developers, architects, and team leads who need to understand an unfamiliar codebase *before* making a critical change. It answers three questions faster than any IDE:
-1.  **What's Dangerous?** (Where is the complex, tangled code?)
-2.  **What's Connected?** (What is the "blast radius" of changing this file?)
-3.  **What's Important?** (Which are the core, load-bearing files and functions?)
-
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/your-repo/diranalyze-cartographer)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-
-  <!-- TODO: Replace with a real screenshot -->
+> **Security advisory:** DirAnalyze is **not sandboxed**. You are editing your local file system directly. Run trusted code only.
+> **Status:** Alpha. Core UI workflow for project analysis, AI debriefing, and AI patching is functional. Rust backend provides serving, LLM proxy, and foundational versioning capabilities.
 
 ---
 
-## Core Features
+## 1. Vision & Goals
 
-*   **Polyglot Analysis Engine:** Parses multiple languages using native-speed WebAssembly parsers, providing deep insights beyond simple text matching.
-*   **Complexity Heatmap:** Instantly identify high-risk files through a visual, color-coded map of cyclomatic complexity and code volume.
-*   **Blast Radius Explorer:** Select any file to see an interactive graph of its dependents (what it will break) and dependencies (what it relies on).
-*   **Symbol-Level Centrality:** Drill down into a file to see which of its exported functions are most critical, based on their usage count across the entire project.
-*   **100% Client-Side & Secure:** Your code is never uploaded. All analysis happens locally in your browser sandbox. The tool is read-only by design.
-*   **Zero-Install:** No setup required. Run it directly from its website or by opening `index.html` locally.
+DirAnalyze aims to be an indispensable, lightweight, and trustworthy companion for developers leveraging AI. It solves common pain points like IDE bloat, inefficient LLM context preparation, and the "black box" nature of AI changes by offering a local-first, deterministic, and transparent tool.
 
----
+For a detailed understanding of the project's vision, target users, and key use cases, please see:
+*   **[`docs/01_PROJECT_OVERVIEW_AND_GOALS.md`](./docs/01_PROJECT_OVERVIEW_AND_GOALS.md)**
 
-## Supported Languages
+## 2. Current State (Notable Features - As of 2025-06-08)
 
-The analysis engine is built on a modular architecture using Tree-sitter and other native parsers compiled to WebAssembly.
+| Component                      | State                | Notes                                                      |
+|--------------------------------|----------------------|------------------------------------------------------------|
+| Backend (Rust)                 | **In Progress**      | Serves UI, proxies LLM calls. Initial version snapshot API (SQLite based) is functional. |
+| Browser UI (HTML/JS/CSS)       | **Functional**       | Project loading, tree view, stats, text reports, file editing (via File System Access API). |
+| AI Debriefing Assistant        | **Functional**       | Packages project context for LLMs.                           |
+| AI Patcher Workflow            | **Functional**       | Applies AI-generated CAPCA patches to local files with review. |
+| Versioning System Foundation   | **In Progress**      | SQLite schema and backend API for initial project snapshots are complete. Further development ongoing. |
+| Hierarchical Semantic Sketch   | Spec Drafted         | Core logic for intelligent context minimization is planned.    |
 
-| Language           | Parser              | File-Level Deps | Symbol-Level Deps | Complexity Metrics | Status      |
-|:-------------------|:--------------------|:---------------:|:-----------------:|:------------------:|:------------|
-| **JavaScript/TS**  | `acorn.js`          |       ✅        |        ✅         |         ✅         | **Stable**  |
-| **Rust**           | `tree-sitter-rust`  |       ✅        |      *(WIP)*      |         ✅         | **Beta**    |
-| **Go**             | `tree-sitter-go`    |       ✅        |      *(WIP)*      |         ✅         | **Beta**    |
-| **Python**         | *Internal AST*      |       ✅        |        ✅         |       *(WIP)*      | **Alpha**   |
-| **Swift**          | *SourceKitten*      |     *(Planned)*     |     *(Planned)*     |      *(Planned)*     | **Planned** |
+## 3. Quick Start
 
----
+1.  Clone the repository.
+2.  Install the [Rust toolchain](https://rustup.rs/).
+3.  **(Windows)** Install [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
+4.  Navigate to the `backend` directory: `cd backend`
+5.  Run the backend server: `cargo run`
+6.  Open `http://127.0.0.1:8000` in a modern browser (Chrome, Edge recommended).
+7.  Drop your project folder onto the UI and grant read/write permissions.
 
-## Architecture Overview
+For more detailed setup, see [`docs/04_DEVELOPMENT_AND_CONTRIBUTING.md`](./docs/04_DEVELOPMENT_AND_CONTRIBUTING.md).
 
-`diranalyze` uses a sophisticated, multi-tiered client-side architecture to ensure a responsive UI, even when analyzing large repositories.
+## 4. Documentation Suite
 
-```mermaid
-graph TD
-    subgraph "Browser Client"
-        UI[Main UI Thread]
-        
-        subgraph "Worker Pool"
-            PW_JS[JS/TS Parser Worker]
-            PW_WASM[WASM Parser Worker Rust/Go]
-        end
+DirAnalyze maintains a comprehensive set of documentation in the `/docs` folder:
 
-        AW[Aggregator Worker]
-    end
+*   **[`01_PROJECT_OVERVIEW_AND_GOALS.md`](./docs/01_PROJECT_OVERVIEW_AND_GOALS.md):** Core vision, principles, target users, and key use cases.
+*   **[`02_ARCHITECTURE_OVERVIEW.md`](./docs/02_ARCHITECTURE_OVERVIEW.md):** High-level technical architecture.
+*   **[`03_VERSIONING_SYSTEM_ARCHITECTURE.md`](./docs/03_VERSIONING_SYSTEM_ARCHITECTURE.md):** Deep dive into the versioning system.
+*   **[`04_DEVELOPMENT_AND_CONTRIBUTING.md`](./docs/04_DEVELOPMENT_AND_CONTRIBUTING.md):** Guide for setting up, developing, and contributing (includes Git conventions).
+*   **[`05_ROADMAP_AND_CHANGELOG.md`](./docs/05_ROADMAP_AND_CHANGELOG.md):** Project roadmap and version history.
+*   **[`06_GITHUB_ISSUE_MANAGEMENT.md`](./docs/06_GITHUB_ISSUE_MANAGEMENT.md):** Protocol for using GitHub Issues.
 
-    UI --> PW_JS
-    UI --> PW_WASM
-    PW_JS --> AW
-    PW_WASM --> AW
-    AW --> UI
-    
-    style UI fill:#lightyellow,stroke:#333
-    style AW fill:#lightblue,stroke:#333
+## 5. Design Principles
+
+DirAnalyze adheres to several core principles:
+1.  **Own the Stack**
+2.  **Deterministic First**
+3.  **Machine-First Interface (for AI)**
+4.  **Small Surface First**
+5.  **Offline by Default**
+6.  **Local-First & User Control**
+7.  **Transparency & Auditability**
+
+(Elaborated in `docs/01_PROJECT_OVERVIEW_AND_GOALS.md`)
+
+## 6. Planned Core Architecture
+
+```text
+Browser UI ─── HTTP/WebSocket ───┐
+                                  │
+                                  ▼
+            DirAnalyze Backend Binary (Rust)
+           (HTTP Server, LLM Proxy, Indexing,
+            Logging, Versioning Database,
+            Planned Runner Coordination)
+                                  │
+                                  ▲
+    External LLM HTTPS Endpoint   │ Optional External Runners
 ```
 
-1.  **Main UI Thread:** Manages only user interactions and rendering, ensuring the app never freezes.
-2.  **Parser Workers:** A pool of Web Workers handles the CPU-intensive task of parsing files. JavaScript files are handled by `acorn.js`, while other languages like Rust and Go have their native Tree-sitter parsers compiled to WebAssembly for near-native performance.
-3.  **Aggregator Worker:** A dedicated worker receives processed data from all parser workers and is responsible for the complex task of stitching together the global dependency graph. This prevents the main thread from becoming a bottleneck.
+(More details in `docs/02_ARCHITECTURE_OVERVIEW.md`)
 
----
+## 7. Limitations
 
-## Getting Started
+*   Not an IDE – no IntelliSense or advanced refactoring tools yet.
+*   Security isolation is research-phase; run only trusted code with direct file system access.
 
-### Using the Live Version
+## 8. Contributing
 
-The easiest way to use `diranalyze` is via the official hosted version:  
-[**junovhs.github.io/diranalyze/**](https://junovhs.github.io/diranalyze/)
+We welcome contributions! Please see [`docs/04_DEVELOPMENT_AND_CONTRIBUTING.md`](./docs/04_DEVELOPMENT_AND_CONTRIBUTING.md) for details on our workflow and Git conventions. Check for issues tagged `good first issue` or `help wanted`.
 
-### Running Locally
+## 9. License
 
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/your-repo/diranalyze-cartographer.git
-    cd diranalyze-cartographer
-    ```
-2.  Install development dependencies:
-    ```bash
-    npm install
-    ```
-3.  Start the development server:
-    ```bash
-    # This will build the WASM parsers and start a hot-reloading server.
-    npm start 
-    ```
-    (This assumes an `npm start` script that runs `task dev` from your `tasks.yaml`)
-
-4.  Open `http://localhost:5173` (or the URL provided by Vite) in your browser.
-
----
-
-## Development & Contribution
-
-If you'd like to contribute, open an issue or submit a pull request!
-
-## License  
-This project is licensed under the MIT License. See the LICENSE file for details.
-
+MIT. Third-party tools retain their original licences.
