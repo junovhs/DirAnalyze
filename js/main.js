@@ -241,7 +241,7 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     appState.selectionCommitted = false;
     appState.directoryHandle = null; // Clears the global handle
     fileEditor.clearEditedFilesCache();
-    if (elements.treeContainer) elements.treeContainer.innerHTML = '<div class=\"empty-notice\">DROP FOLDER OR IMPORT SCAFFOLD</div>';
+    if (elements.treeContainer) elements.treeContainer.innerHTML = '<div class="empty-notice">DROP FOLDER OR IMPORT SCAFFOLD</div>';
     disableUIControls();
     uiManager.activateTab('textReportTab');
 }
@@ -286,35 +286,35 @@ export function showFailedUI(message = "OPERATION FAILED") {
     enableUIControls();
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.folderInput) elements.folderInput.disabled = false;
+    if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
 }
 
 function commitSelections() {
     if (!appState.fullScanData || !elements.treeContainer) return;
     const selectedPaths = new Set();
-    elements.treeContainer.querySelectorAll('li[data-selected=\"true\"]').forEach(li => {
+    elements.treeContainer.querySelectorAll('li[data-selected="true"]').forEach(li => {
         if (li.dataset.path) selectedPaths.add(li.dataset.path);
     });
 
     if (selectedPaths.size === 0 && appState.fullScanData.allFilesList.length > 0) {
         // If nothing is visually selected via checkboxes, but a project is loaded,
-        // interpret \"Commit\" with no visual selection as \"commit nothing\" (empty selection).
+        // interpret "Commit" with no visual selection as "commit nothing" (empty selection).
         appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, new Set()); // Empty set
-        notificationSystem.showNotification(\"Committed an empty selection.\", { duration: 2000 });
+        notificationSystem.showNotification("Committed an empty selection.", { duration: 2000 });
     } else if (selectedPaths.size === 0 && appState.fullScanData.allFilesList.length === 0) {
         // Project loaded is empty or structure is empty
         appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, new Set());
-        notificationSystem.showNotification(\"No items to commit in the current project.\", { duration: 2000 });
-    }
-    else {
+        notificationSystem.showNotification("No items to commit in the current project.", { duration: 2000 });
+    } else {
         appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, selectedPaths);
-        notificationSystem.showNotification(\"Selections committed.\", { duration: 1500 });
+        notificationSystem.showNotification("Selections committed.", { duration: 1500 });
     }
     appState.selectionCommitted = true;
     uiManager.refreshAllUI();
 }
 
 function clearProjectData() {
-    resetUIForProcessing(\"DROP FOLDER OR IMPORT SCAFFOLD\");
+    resetUIForProcessing("DROP FOLDER OR IMPORT SCAFFOLD");
     if(elements.loader) elements.loader.classList.remove('visible');
     enableUIControls();
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
@@ -337,7 +337,7 @@ function initApp() {
     elements.pageLoader.classList.add('hidden');
     document.body.classList.add('loaded');
     appState.initialLoadComplete = true;
-    console.log(\"DirAnalyse Matrix Initialized (v. Full Replacement).\");
+    console.log("DirAnalyse Matrix Initialized (v. Full Replacement).");
     disableUIControls();
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.folderInput) elements.folderInput.disabled = false;
