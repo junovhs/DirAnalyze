@@ -71,8 +71,26 @@ function populateElements() {
 }
 
 function setupEventListeners() {
-    elements.dropZone?.addEventListener('dragover', (e) => e.preventDefault());
-    elements.dropZone?.addEventListener('drop', handleFileDrop);
+    // --- Drag and Drop Listeners for visual feedback ---
+    elements.dropZone?.addEventListener('dragover', (e) => {
+        e.preventDefault(); // Necessary to allow drop.
+        e.dataTransfer.dropEffect = 'copy';
+    });
+    elements.dropZone?.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        elements.dropZone.classList.add('dragover');
+    });
+    elements.dropZone?.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        elements.dropZone.classList.remove('dragover');
+    });
+    elements.dropZone?.addEventListener('drop', (e) => {
+        e.preventDefault();
+        elements.dropZone.classList.remove('dragover');
+        handleFileDrop(e);
+    });
+    // --- End Drag and Drop ---
+
     elements.selectFolderBtn?.addEventListener('click', handleFolderSelect);
     elements.commitSelectionsBtn?.addEventListener('click', commitSelections);
     elements.downloadProjectBtn?.addEventListener('click', zipManager.downloadProjectAsZip);
@@ -123,7 +141,6 @@ function setupEventListeners() {
 }
 
 async function handleFileDrop(event) {
-    event.preventDefault();
     if (appState.processingInProgress) return;
 
     const items = event.dataTransfer.items;
@@ -139,10 +156,8 @@ async function handleFileDrop(event) {
                         await verifyAndProcessDirectory(handle);
                         return; // Successfully processed, exit the function.
                     }
-                    // If it's a file, just continue to the next item.
                 } catch (err) {
-                    // Log the error for a specific item but don't stop the loop.
-                    console.warn("Could not get a handle for a dropped item. It might be a virtual file or a type the browser can't handle.", err);
+                    console.warn("Could not get a handle for a dropped item.", err);
                 }
             }
         }
@@ -201,20 +216,19 @@ async function verifyAndProcessDirectory(passedDirectoryHandle) {
     resetUIForProcessing(`Processing '${passedDirectoryHandle.name}'...`);
 
     // NOW, assign the fresh, permission-verified handle to the global appState
-    // This is the critical fix: ensure it's set *after* resetUIForProcessing clears it.
     appState.directoryHandle = passedDirectoryHandle;
     console.log('[verifyAndProcessDirectory] appState.directoryHandle SET TO:', appState.directoryHandle);
 
 
     try {
-        // Process using the now globally set appState.directoryHandle (or the local passedDirectoryHandle, both are same now)
+        // Process using the now globally set appState.directoryHandle
         appState.fullScanData = await fileSystem.processDirectoryEntryRecursive(appState.directoryHandle, appState.directoryHandle.name, 0);
         appState.committedScanData = appState.fullScanData;
         appState.selectionCommitted = true;
         if (elements.treeContainer) elements.treeContainer.innerHTML = '';
         treeView.renderTree(appState.fullScanData.directoryData, elements.treeContainer);
         uiManager.refreshAllUI();
-        enableUIControls(); // This will now correctly enable buttons based on appState.directoryHandle
+        enableUIControls(); 
         console.log('[verifyAndProcessDirectory] Processing complete. appState.directoryHandle IS:', appState.directoryHandle);
     } catch (err) {
         showFailedUI("Directory processing failed.");
@@ -246,8 +260,7 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
 
 export function enableUIControls() {
     const hasData = !!appState.fullScanData;
-    const hasDirectoryHandle = !!appState.directoryHandle; // Key for enabling save-related features
-
+    
     if (elements.commitSelectionsBtn) elements.commitSelectionsBtn.disabled = !hasData;
     if (elements.downloadProjectBtn) elements.downloadProjectBtn.disabled = !hasData;
     if (elements.clearProjectBtn) elements.clearProjectBtn.disabled = !hasData;
@@ -258,9 +271,7 @@ export function enableUIControls() {
     if (elements.collapseAllBtn) elements.collapseAllBtn.disabled = !hasData;
 
     if (elements.copyReportButton) elements.copyReportButton.disabled = !(hasData && appState.activeTabId === 'textReportTab');
-    // Enable patch prompt if any project (scaffold or disk) is loaded
     if (elements.copyPatchPromptBtn) elements.copyPatchPromptBtn.disabled = !hasData;
-    // Apply AI Patch button itself in aiPatcher.js would depend on text input
 }
 
 function disableUIControls() {
@@ -281,7 +292,7 @@ export function showFailedUI(message = "OPERATION FAILED") {
     uiManager.activateTab('textReportTab');
     if(elements.loader) elements.loader.classList.remove('visible');
     appState.processingInProgress = false;
-    enableUIControls();
+    // Re-enable the initial action buttons after failure
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.selectFolderBtn) elements.selectFolderBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
@@ -295,12 +306,9 @@ function commitSelections() {
     });
 
     if (selectedPaths.size === 0 && appState.fullScanData.allFilesList.length > 0) {
-        // If nothing is visually selected via checkboxes, but a project is loaded,
-        // interpret "Commit" with no visual selection as "commit nothing" (empty selection).
         appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, new Set()); // Empty set
         notificationSystem.showNotification("Committed an empty selection.", { duration: 2000 });
     } else if (selectedPaths.size === 0 && appState.fullScanData.allFilesList.length === 0) {
-        // Project loaded is empty or structure is empty
         appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, new Set());
         notificationSystem.showNotification("No items to commit in the current project.", { duration: 2000 });
     } else {
@@ -314,7 +322,7 @@ function commitSelections() {
 function clearProjectData() {
     resetUIForProcessing("DROP FOLDER OR IMPORT SCAFFOLD");
     if(elements.loader) elements.loader.classList.remove('visible');
-    enableUIControls();
+    
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.selectFolderBtn) elements.selectFolderBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
@@ -336,6 +344,8 @@ function initApp() {
     document.body.classList.add('loaded');
     appState.initialLoadComplete = true;
     console.log("DirAnalyse Matrix Initialized (v. Full Replacement).");
+    
+    // Initial state of controls
     disableUIControls();
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.selectFolderBtn) elements.selectFolderBtn.disabled = false;
