@@ -125,17 +125,34 @@ function setupEventListeners() {
 async function handleFileDrop(event) {
     event.preventDefault();
     if (appState.processingInProgress) return;
+
     const items = event.dataTransfer.items;
-    if (items && items.length > 0 && items[0].getAsFileSystemHandle) {
-        const handle = await items[0].getAsFileSystemHandle();
-        if (handle.kind === 'directory') {
-            // Do not set appState.directoryHandle here globally yet.
-            // Pass it directly to verifyAndProcessDirectory.
-            await verifyAndProcessDirectory(handle);
-        } else {
-            errorHandler.showError({ name: "InvalidTargetError", message: "Please drop a folder." });
+
+    if (items && items.length > 0) {
+        for (const item of items) {
+            // Ensure the method exists before calling it.
+            if (typeof item.getAsFileSystemHandle === 'function') {
+                try {
+                    const handle = await item.getAsFileSystemHandle();
+                    if (handle && handle.kind === 'directory') {
+                        // Found a directory, process it and we're done.
+                        await verifyAndProcessDirectory(handle);
+                        return; // Successfully processed, exit the function.
+                    }
+                    // If it's a file, just continue to the next item.
+                } catch (err) {
+                    // Log the error for a specific item but don't stop the loop.
+                    console.warn("Could not get a handle for a dropped item. It might be a virtual file or a type the browser can't handle.", err);
+                }
+            }
         }
     }
+    
+    // If the loop completes and we haven't returned, it means no directory was found.
+    errorHandler.showError({ 
+        name: "DirectoryDropError", 
+        message: "No folder was found in the dropped items. Please ensure you are dropping a valid directory."
+    });
 }
 
 async function handleFolderSelect() {
@@ -224,7 +241,7 @@ export function resetUIForProcessing(loaderMsg = "ANALYSING...") {
     appState.selectionCommitted = false;
     appState.directoryHandle = null; // Clears the global handle
     fileEditor.clearEditedFilesCache();
-    if (elements.treeContainer) elements.treeContainer.innerHTML = '<div class="empty-notice">DROP FOLDER OR IMPORT SCAFFOLD</div>';
+    if (elements.treeContainer) elements.treeContainer.innerHTML = '<div class=\"empty-notice\">DROP FOLDER OR IMPORT SCAFFOLD</div>';
     disableUIControls();
     uiManager.activateTab('textReportTab');
 }
@@ -274,30 +291,30 @@ export function showFailedUI(message = "OPERATION FAILED") {
 function commitSelections() {
     if (!appState.fullScanData || !elements.treeContainer) return;
     const selectedPaths = new Set();
-    elements.treeContainer.querySelectorAll('li[data-selected="true"]').forEach(li => {
+    elements.treeContainer.querySelectorAll('li[data-selected=\"true\"]').forEach(li => {
         if (li.dataset.path) selectedPaths.add(li.dataset.path);
     });
 
     if (selectedPaths.size === 0 && appState.fullScanData.allFilesList.length > 0) {
         // If nothing is visually selected via checkboxes, but a project is loaded,
-        // interpret "Commit" with no visual selection as "commit nothing" (empty selection).
+        // interpret \"Commit\" with no visual selection as \"commit nothing\" (empty selection).
         appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, new Set()); // Empty set
-        notificationSystem.showNotification("Committed an empty selection.", { duration: 2000 });
+        notificationSystem.showNotification(\"Committed an empty selection.\", { duration: 2000 });
     } else if (selectedPaths.size === 0 && appState.fullScanData.allFilesList.length === 0) {
         // Project loaded is empty or structure is empty
         appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, new Set());
-        notificationSystem.showNotification("No items to commit in the current project.", { duration: 2000 });
+        notificationSystem.showNotification(\"No items to commit in the current project.\", { duration: 2000 });
     }
     else {
         appState.committedScanData = fileSystem.filterScanData(appState.fullScanData, selectedPaths);
-        notificationSystem.showNotification("Selections committed.", { duration: 1500 });
+        notificationSystem.showNotification(\"Selections committed.\", { duration: 1500 });
     }
     appState.selectionCommitted = true;
     uiManager.refreshAllUI();
 }
 
 function clearProjectData() {
-    resetUIForProcessing("DROP FOLDER OR IMPORT SCAFFOLD");
+    resetUIForProcessing(\"DROP FOLDER OR IMPORT SCAFFOLD\");
     if(elements.loader) elements.loader.classList.remove('visible');
     enableUIControls();
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
@@ -320,7 +337,7 @@ function initApp() {
     elements.pageLoader.classList.add('hidden');
     document.body.classList.add('loaded');
     appState.initialLoadComplete = true;
-    console.log("DirAnalyse Matrix Initialized (v. Full Replacement).");
+    console.log(\"DirAnalyse Matrix Initialized (v. Full Replacement).\");
     disableUIControls();
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
     if (elements.folderInput) elements.folderInput.disabled = false;

@@ -1,4 +1,14 @@
+// diranalyze/js/errorHandler.js
+
 const errorTypes = {
+    DirectoryDropError: {
+        title: "Could Not Process Dropped Folder",
+        message: "A folder could not be identified in the dropped items.",
+        suggestions: [
+            "Please ensure you are dropping a single folder, not multiple files or a shortcut.",
+            "On some Linux systems, dragging from the file manager may not work correctly in the browser. Try using the 'SELECT FOLDER' button as a more reliable alternative."
+        ]
+    },
     NoModificationAllowedError: {
         title: "Permission Denied: Cannot Modify Files",
         message: "The browser was denied permission to modify the file system.",
@@ -75,7 +85,7 @@ export function showError(error) {
     // Set error information
     errorTitleEl.textContent = errorInfo.title;
     errorMessageEl.textContent = error.message || errorInfo.message; // Prefer specific error message
-    errorDetailsEl.textContent = `Error Type: ${error.name}\nDetails: ${error.message}\nPath: ${error.path || 'N/A'}\nStack: ${error.stack || 'Not available'}`;
+    errorDetailsEl.textContent = `Error Type: ${error.name}\\nDetails: ${error.message}\\nPath: ${error.path || 'N/A'}\\nStack: ${error.stack || 'Not available'}`;
     
     // Clear previous suggestions
     errorSuggestionsEl.innerHTML = '<strong>Suggestions:</strong>';
