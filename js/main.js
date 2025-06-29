@@ -35,7 +35,7 @@ export let elements = {};
 
 function populateElements() {
     const elementIds = {
-        pageLoader: 'pageLoader', dropZone: 'dropZone', folderInput: 'folderInput',
+        pageLoader: 'pageLoader', dropZone: 'dropZone', selectFolderBtn: 'selectFolderBtn',
         treeContainer: 'treeContainer', globalStatsDiv: 'globalStats', selectionSummaryDiv: 'selectionSummary',
         appContainer: 'appContainer', leftSidebar: 'leftSidebar', sidebarResizer: 'sidebarResizer',
         mainView: 'mainView', mainViewTabs: 'mainViewTabs', tabContentArea: 'tabContentArea',
@@ -73,7 +73,7 @@ function populateElements() {
 function setupEventListeners() {
     elements.dropZone?.addEventListener('dragover', (e) => e.preventDefault());
     elements.dropZone?.addEventListener('drop', handleFileDrop);
-    elements.folderInput?.addEventListener('change', handleFolderSelect);
+    elements.selectFolderBtn?.addEventListener('click', handleFolderSelect);
     elements.commitSelectionsBtn?.addEventListener('click', commitSelections);
     elements.downloadProjectBtn?.addEventListener('click', zipManager.downloadProjectAsZip);
     elements.clearProjectBtn?.addEventListener('click', clearProjectData);
@@ -159,8 +159,6 @@ async function handleFolderSelect() {
     if (appState.processingInProgress) return;
     try {
         const handle = await window.showDirectoryPicker();
-        // Do not set appState.directoryHandle here globally yet.
-        // Pass it directly to verifyAndProcessDirectory.
         await verifyAndProcessDirectory(handle);
     } catch (err) {
         if (err.name !== 'AbortError') {
@@ -285,7 +283,7 @@ export function showFailedUI(message = "OPERATION FAILED") {
     appState.processingInProgress = false;
     enableUIControls();
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
-    if (elements.folderInput) elements.folderInput.disabled = false;
+    if (elements.selectFolderBtn) elements.selectFolderBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
 }
 
@@ -318,7 +316,7 @@ function clearProjectData() {
     if(elements.loader) elements.loader.classList.remove('visible');
     enableUIControls();
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
-    if (elements.folderInput) elements.folderInput.disabled = false;
+    if (elements.selectFolderBtn) elements.selectFolderBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
 }
 
@@ -340,7 +338,7 @@ function initApp() {
     console.log("DirAnalyse Matrix Initialized (v. Full Replacement).");
     disableUIControls();
     if (elements.importAiScaffoldBtn) elements.importAiScaffoldBtn.disabled = false;
-    if (elements.folderInput) elements.folderInput.disabled = false;
+    if (elements.selectFolderBtn) elements.selectFolderBtn.disabled = false;
     if (elements.copyScaffoldPromptBtn) elements.copyScaffoldPromptBtn.disabled = false;
 }
 

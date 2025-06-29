@@ -76,8 +76,7 @@
                         <div class="drop-icon">📁</div>
                         <div class="drop-text">DROP FOLDER</div>
                         <div class="drop-alternative">- OR -</div>
-                        <label for="folderInput" class="folder-select-btn">SELECT FOLDER</label>
-                        <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none">
+                        <button id="selectFolderBtn" class="folder-select-btn">SELECT FOLDER</button>
                     </div>
                 </div>
                 <div id="loader">ANALYSING...</div>
@@ -140,7 +139,7 @@
                                 4. The AI will provide a CAPCA JSON array. Paste this entire JSON response into the textarea below.<br>
                                 5. Click "Review & Apply Patches" to see a diff for each proposed change and confirm its application.
                             </p>
-                            <textarea id="aiPatchInput" rows="6" placeholder='e.g., [{"file": "path/to/your/file.ext", "operation": "replace_segment_after_anchor", ...}]'></textarea>
+                            <textarea id="aiPatchInput" rows="6" placeholder='e.g., [{\"file\": \"path/to/your/file.ext\", \"operation\": \"replace_segment_after_anchor\", ...}]'></textarea>
                             <button id="applyAiPatchBtn" class="action-button">Review & Apply Patches</button>
                         </div>
                         <div class="patch-results-area">
@@ -191,8 +190,7 @@
 
     <div id="filePreview">
         <button id="closePreview">×</button><h3 id="filePreviewTitle"></h3>
-        <div id="filePreviewContentWrapper" style="height: calc(100% - 40px); width: 100%;">
-             <div id="filePreviewContent" style="height: 100%; width:100%; border: 1px solid var(--border-color);"></div>
+        <div id="filePreviewContentWrapper" style="height: calc(100% - 40px); width: 100%;\">\n             <div id="filePreviewContent" style="height: 100%; width:100%; border: 1px solid var(--border-color);"></div>
         </div>
     </div>
     
@@ -247,7 +245,7 @@
             </div>
              <div class="modal-scrollable-content" style="flex-grow:1; overflow-y:auto; padding-right:10px; width:100%;">
                 <p style="font-size:0.9em; color:var(--dim-color); margin-top:0;">Paste the JSON array of <code>create_scaffold_file</code> operations from your AI below. Ensure filePaths are like 'projectName/src/app.js' or 'projectName/index.html'.</p>
-                <textarea id="aiScaffoldJsonInput" rows="10" style="width: 98%; font-family: var(--font-main); padding: 8px; border: 1px solid var(--border-color); border-radius: var(--border-radius-small); margin-bottom:15px;" placeholder='[{"operation": "create_scaffold_file", "filePath": "my-project/index.html", "content": "..."}]'></textarea>
+                <textarea id="aiScaffoldJsonInput" rows="10" style="width: 98%; font-family: var(--font-main); padding: 8px; border: 1px solid var(--border-color); border-radius: var(--border-radius-small); margin-bottom:15px;" placeholder='[{\"operation\": \"create_scaffold_file\", \"filePath\": \"my-project/index.html\", \"content\": \"...\"}]'></textarea>
             </div>
             <div class="diff-modal-actions">
                 <button id="createProjectFromScaffoldBtn" class="action-button">Create Project from Scaffold</button>
