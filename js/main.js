@@ -60,10 +60,7 @@ function populateElements() {
         closeScaffoldModalBtn: 'closeScaffoldModalBtn', aiScaffoldJsonInput: 'aiScaffoldJsonInput',
         createProjectFromScaffoldBtn: 'createProjectFromScaffoldBtn', cancelScaffoldImportBtn: 'cancelScaffoldImportBtn',
         textReportTab: 'textReportTab', aiPatcherTab: 'aiPatcherTab',
-        aiDebriefingAssistantBtn: 'aiDebriefingAssistantBtn', aiDebriefingAssistantModal: 'aiDebriefingAssistantModal',
-        closeAiDebriefingAssistantModalBtn: 'closeAiDebriefingAssistantModalBtn',
-        debriefMetadataCheckbox: 'debriefMetadataCheckbox', assembleDebriefPackageBtn: 'assembleDebriefPackageBtn',
-        useStandardDebriefProfileBtn: 'useStandardDebriefProfileBtn',
+        aiDebriefingAssistantBtn: 'aiDebriefingAssistantBtn',
         copyPatchPromptBtn: 'copyPatchPromptBtn',
     };
     for (const key in elementIds) elements[key] = document.getElementById(elementIds[key]);
@@ -71,9 +68,8 @@ function populateElements() {
 }
 
 function setupEventListeners() {
-    // --- Drag and Drop Listeners for visual feedback ---
     elements.dropZone?.addEventListener('dragover', (e) => {
-        e.preventDefault(); // Necessary to allow drop.
+        e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
     });
     elements.dropZone?.addEventListener('dragenter', (e) => {
@@ -89,8 +85,6 @@ function setupEventListeners() {
         elements.dropZone.classList.remove('dragover');
         handleFileDrop(e);
     });
-    // --- End Drag and Drop ---
-
     elements.selectFolderBtn?.addEventListener('click', handleFolderSelect);
     elements.commitSelectionsBtn?.addEventListener('click', commitSelections);
     elements.downloadProjectBtn?.addEventListener('click', zipManager.downloadProjectAsZip);
@@ -335,7 +329,7 @@ function initApp() {
     fileEditor.initFileEditor();
     initAiPatcher(appState, elements);
     scaffoldImporter.initScaffoldImporter();
-    aiDebriefingAssistant.initAiDebriefingAssistant(appState, elements);
+    aiDebriefingAssistant.initAiDebriefingAssistant();
     uiManager.initTabs(appState, elements);
     sidebarResizer.initResizer(elements.leftSidebar, elements.sidebarResizer, elements.mainView);
     setupEventListeners();
