@@ -194,8 +194,9 @@
 .error-details {
     padding: 10px; background-color: var(--highlight-bg);
     border-radius: var(--border-radius-small); margin-bottom: 10px;
-    font-family: var(--font-main); white-space: pre-wrap;
+    font-family: var(--font-main);
     color: var(--dim-color); font-size: 0.8em; max-height: 150px; overflow-y: auto;
+    white-space: pre-wrap; /* This is the fix! */
 }
 .error-suggestions { border-top: 1px solid var(--border-color); padding-top: 10px; }
 .error-suggestions ul { padding-left: 18px; margin-top: 4px; }
